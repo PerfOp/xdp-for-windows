@@ -11,6 +11,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "OLSHighPerfTimer.h"
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 
@@ -162,9 +163,9 @@ typedef struct {
     //time_t last_refill;
     LARGE_INTEGER FreqQpc;
     LARGE_INTEGER lastCounter;
-} TokenBucket;
+} sTokenBucket;
 
-void init_token_bucket(TokenBucket* bucket, int capacity, int refill_rate) {
+void init_token_bucket(sTokenBucket* bucket, int capacity, int refill_rate) {
     bucket->capacity = capacity;
     bucket->tokens = capacity;
     bucket->refill_rate = refill_rate;
@@ -173,7 +174,7 @@ void init_token_bucket(TokenBucket* bucket, int capacity, int refill_rate) {
     //bucket->last_refill = time(NULL);
 }
 
-void refill_tokens(TokenBucket* bucket) {
+void refill_tokens(sTokenBucket* bucket) {
     LARGE_INTEGER now;
     QueryPerformanceCounter(&now);
     INT64 elapsedns = QpcToUs64(now.QuadPart - bucket->lastCounter.QuadPart, bucket->FreqQpc.QuadPart);
@@ -185,7 +186,7 @@ void refill_tokens(TokenBucket* bucket) {
     }
 }
 
-int consume_tokens(TokenBucket* bucket, int tokens) {
+int consume_tokens(sTokenBucket* bucket, int tokens) {
     refill_tokens(bucket);
 
     if (bucket->tokens >= tokens) {
@@ -265,7 +266,8 @@ typedef struct {
     UINT32 received;
     UINT32 donefiles;
     LARGE_INTEGER sendMark;
-    TokenBucket tbucket;
+    sTokenBucket filebucket;
+    sTokenBucket packetbucket;
     //-huajianwang:eelat
 } MY_QUEUE;
 
@@ -838,6 +840,19 @@ PrintFinalLatStats(
         Queue->orderSamples[(UINT32)(Queue->latIndex * 0.999999)],
         Queue->filebatch
     );
+    printf(
+        "position at: %-3s[%d]: min=%d P50=%d P90=%d P99=%d P99.9=%d P99.99=%d P99.999=%d P99.9999=%d packets lost\n",
+        modestr, Queue->queueId,
+        0,
+        (UINT32)(Queue->latIndex * 0.5),
+        (UINT32)(Queue->latIndex * 0.9),
+        (UINT32)(Queue->latIndex * 0.99),
+        (UINT32)(Queue->latIndex * 0.999),
+        (UINT32)(Queue->latIndex * 0.9999),
+        (UINT32)(Queue->latIndex * 0.99999),
+        (UINT32)(Queue->latIndex * 0.999999)
+    );
+ 
     printf("Collected %d samples\n", Queue->latIndex);
     //-huajianwang:eelat
 }
@@ -1170,6 +1185,7 @@ ProcessTx(
     available =
         RingPairReserve(
             &Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
+            //&Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
     if (available > 0) {
         ReadCompletionPackets(Queue, consumerIndex, producerIndex, available);
         XskRingConsumerRelease(&Queue->compRing, available);
@@ -1193,7 +1209,7 @@ ProcessTx(
         RingPairReserve(
             &Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, nextsent);
     //-huajianwang:eelat
-
+    
     if (available > 0) {
         WriteTxPackets(Queue, consumerIndex, producerIndex, available);
         XskRingConsumerRelease(&Queue->freeRing, available);
@@ -1239,7 +1255,8 @@ DoTxMode(
     printf("Sending...\n");
     SetEvent(Thread->readyEvent);
     for (UINT32 qI = 0; qI < Thread->queueCount; qI++) {
-        init_token_bucket(&(Thread->queues[qI].tbucket), Thread->queues[qI].iobatchsize, Thread->queues[qI].tokencapacity);
+        init_token_bucket(&(Thread->queues[qI].filebucket), Thread->queues[qI].tokencapacity, Thread->queues[qI].tokencapacity);
+        init_token_bucket(&(Thread->queues[qI].packetbucket), Thread->queues[qI].iobatchsize, 1000000);
     }
 
     while (!ReadBooleanNoFence(&done)) {
@@ -1247,21 +1264,17 @@ DoTxMode(
 
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
             //huajianwang:eelat
-            while ((consume_tokens(&Thread->queues[qIndex].tbucket, 1) != 0) && (Thread->queues[qIndex].sent < Thread->queues[qIndex].filebatch)) {
-                if (Thread->queues[qIndex].sent == 0) {
-                    QueryPerformanceCounter(&(Thread->queues[qIndex].sendMark));
+            while ((consume_tokens(&Thread->queues[qIndex].filebucket, 1) != 0) ) {
+                while ((Thread->queues[qIndex].sent < Thread->queues[qIndex].filebatch)) {
+                    if (Thread->queues[qIndex].sent == 0) {
+                        QueryPerformanceCounter(&(Thread->queues[qIndex].sendMark));
+                    }
+					Processed |= ProcessTx(&Thread->queues[qIndex], Thread->wait);
                 }
-                Processed |= ProcessTx(&Thread->queues[qIndex], Thread->wait);
             }
-            //if (Thread->queues[qIndex].sent < Thread->queues[qIndex].filebatch) {
-            //if (consume_tokens(&Thread->queues[qIndex].tbucket, 1) != 0) {
-            //}
-            //}
             if (Thread->queues[qIndex].sent >= Thread->queues[qIndex].filebatch) {
                 LARGE_INTEGER now;
                 QueryPerformanceCounter(&now);
-                //INT64 us=QpcToUs64((now.QuadPart - Thread->queues[qIndex].sendMark.QuadPart), Thread->queues[qIndex].tbucket.FreqQpc.QuadPart);
-                //printf("Sent %d files with %llu us\n", Thread->queues[qIndex].donefiles, us);
                 Thread->queues[qIndex].sent = 0;
                 Thread->queues[qIndex].donefiles++;
                 if (Thread->queues[qIndex].donefiles % 1000 == 0) {

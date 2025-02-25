@@ -11,7 +11,11 @@
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemGroup>
-    <ClCompile Include="util.cpp" />
+    <ClCompile Include="OLSHighPerfTimer.cpp" />
+    <ClCompile Include="xdpbench.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="OLSHighPerfTimer.h" />
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>
