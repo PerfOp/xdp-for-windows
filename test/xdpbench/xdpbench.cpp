@@ -41,8 +41,9 @@
 #define DEFAULT_YIELD_COUNT 0
 
 //huajianwang:eelat
-#define DEFAULT_FILE_BATCH 1
-#define DEFAULT_TOKEN_CAPACITY 1000
+#define DEFAULT_FRAMES_PER_FILE 1
+#define DEFAULT_FILE_RATE 0
+#define DEFAULT_FRAME_RATE 10000
 //-huajianwang:eelat
 
 CHAR* HELP =
@@ -76,10 +77,12 @@ CHAR* HELP =
 "                      Default: " STR_OF(DEFAULT_UMEM_CHUNK_SIZE) "\n"
 "   -h <headroom>      The size (in bytes) of UMEM chunk headroom\n"
 "                      Default: " STR_OF(DEFAULT_UMEM_HEADROOM) "\n"
-"   -fb <filebatch>    The size (in packets) of the File to benchmark throughput\n"
-"                      Default: " STR_OF(DEFAULT_FILE_BATCH) "\n"
-"   -tc <tokencapacity> The size (in packets) of the transimission rate\n"
-"                      Default: " STR_OF(DEFAULT_TOKEN_CAPACITY) "\n"
+"   -framerate <framerate>     The rate for sending frames (per second)\n"
+"                      Default: " STR_OF(DEFAULT_FRAME_RATE) "\n"
+"   -filerate <filerate>     The rate for sending files (per second)\n"
+"                      Default: " STR_OF(DEFAULT_FILE_RATE) "\n"
+"   -framesperfile     The  (in packets) of the File to benchmark throughput\n"
+"                      Default: " STR_OF(DEFAULT_FRAMES_PER_FILE) "\n"
 "   -txio <txiosize>   The size (in bytes) of each IO in tx mode\n"
 "                      Default: " STR_OF(DEFAULT_TX_IO_SIZE) "\n"
 "   -b <iobatchsize>   The number of buffers to submit for IO at once\n"
@@ -260,14 +263,16 @@ typedef struct {
     XSK_RING freeRing;
     XSK_UMEM_REG umemReg;
     //huajianwang:eelat
-    UINT32 filebatch;
-    UINT32 tokencapacity;
+    UINT32 frameperfile;
+    UINT32 filerate;
+    UINT32 framerate;
     UINT32 sent;
     UINT32 received;
     UINT32 donefiles;
     LARGE_INTEGER sendMark;
     sTokenBucket filebucket;
     sTokenBucket packetbucket;
+    bool sending;
     //-huajianwang:eelat
 } MY_QUEUE;
 
@@ -838,7 +843,7 @@ PrintFinalLatStats(
         Queue->orderSamples[(UINT32)(Queue->latIndex * 0.9999)],
         Queue->orderSamples[(UINT32)(Queue->latIndex * 0.99999)],
         Queue->orderSamples[(UINT32)(Queue->latIndex * 0.999999)],
-        Queue->filebatch
+        Queue->frameperfile
     );
     printf(
         "position at: %-3s[%d]: min=%d P50=%d P90=%d P99=%d P99.9=%d P99.99=%d P99.999=%d P99.9999=%d packets lost\n",
@@ -928,7 +933,7 @@ PrintFinalStats(
         PrintFinalLatStats(Queue);
     }
     if (mode == ModeTx) {
-        printf("Send batch as %d with %d samples\n", Queue->filebatch, Queue->donefiles);
+        printf("Send batch as %d with %d samples\n", Queue->frameperfile, Queue->donefiles);
     }
     //-huajianwang:eelat
 }
@@ -1201,7 +1206,7 @@ ProcessTx(
     }
 
     //huajianwang:eelat
-    UINT32 nextsent = min(Queue->iobatchsize, Queue->filebatch - Queue->sent);
+    UINT32 nextsent = min(Queue->iobatchsize, Queue->frameperfile - Queue->sent);
     //available =
     //    RingPairReserve(
     //        &Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, Queue->iobatchsize);
@@ -1255,58 +1260,65 @@ DoTxMode(
     printf("Sending...\n");
     SetEvent(Thread->readyEvent);
     for (UINT32 qI = 0; qI < Thread->queueCount; qI++) {
-        init_token_bucket(&(Thread->queues[qI].filebucket), Thread->queues[qI].tokencapacity, Thread->queues[qI].tokencapacity);
-        init_token_bucket(&(Thread->queues[qI].packetbucket), Thread->queues[qI].iobatchsize, 1000000);
+        init_token_bucket(&(Thread->queues[qI].filebucket), Thread->queues[qI].filerate, Thread->queues[qI].filerate);
+        init_token_bucket(&(Thread->queues[qI].packetbucket), Thread->queues[qI].iobatchsize, Thread->queues[qI].framerate);
+        Thread->queues[qI].sending = false;
     }
 
     while (!ReadBooleanNoFence(&done)) {
         BOOLEAN Processed = FALSE;
 
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-            //huajianwang:eelat
-            while ((consume_tokens(&Thread->queues[qIndex].filebucket, 1) != 0) ) {
-                while ((Thread->queues[qIndex].sent < Thread->queues[qIndex].filebatch)) {
-                    if (Thread->queues[qIndex].sent == 0) {
-                        QueryPerformanceCounter(&(Thread->queues[qIndex].sendMark));
-                    }
-					Processed |= ProcessTx(&Thread->queues[qIndex], Thread->wait);
-                }
-            }
-            if (Thread->queues[qIndex].sent >= Thread->queues[qIndex].filebatch) {
-                LARGE_INTEGER now;
-                QueryPerformanceCounter(&now);
-                Thread->queues[qIndex].sent = 0;
-                Thread->queues[qIndex].donefiles++;
-                if (Thread->queues[qIndex].donefiles % 1000 == 0) {
-                    printf("Sent %d samples\n", Thread->queues[qIndex].donefiles);
-                }
-            }
-            /*
-            if (Thread->queues[qIndex].received < Thread->queues[qIndex].filebatch) {
-                Processed |= !!ProcessRx(&Thread->queues[qIndex], Thread->wait);
-            }
-            if (Thread->queues[qIndex].sent == Thread->queues[qIndex].filebatch) {
-                Thread->queues[qIndex].donefiles++;
-                if (Thread->queues[qIndex].received == Thread->queues[qIndex].filebatch) {
-                    Thread->queues[qIndex].received = 0;
-                    Thread->queues[qIndex].sent = 0;
-                    LARGE_INTEGER receivedMark;
-                    QueryPerformanceCounter(&receivedMark);
-                    if (Thread->queues[qIndex].latIndex < Thread->queues[qIndex].latSamplesCount) {
-                        Thread->queues[qIndex].latSamples[Thread->queues[qIndex].latIndex++] = receivedMark.QuadPart - Thread->queues[qIndex].sendMark.QuadPart;
-                    }
-                    //printf("sent:%d, received: %d\n", Thread->queues[qIndex].sent, Thread->queues[qIndex].received);
-                    Sleep(1);
-                }
-            }
-            */
-            /*
-            if (Thread->queues[qIndex].received == Thread->queues[qIndex].filebatch) {
-                Thread->queues[qIndex].received = 0;
-                Thread->queues[qIndex].sent = 0;
-                Sleep(10);
-            }
-*/
+			if (Thread->queues[qIndex].filerate == 0) {
+				Processed |= ProcessTx(&Thread->queues[qIndex], Thread->wait);
+			}
+			else {
+				//huajianwang:eelat
+				if (Thread->queues[qIndex].sent == 0) {
+					if (consume_tokens(&Thread->queues[qIndex].filebucket, 1) != 0) {
+						Thread->queues[qIndex].sending = true;
+					}
+				}
+				if (Thread->queues[qIndex].sending) {
+					if ((consume_tokens(&Thread->queues[qIndex].packetbucket, Thread->queues[qIndex].iobatchsize) != 0)) {
+						if (Thread->queues[qIndex].sent == 0) {
+							QueryPerformanceCounter(&(Thread->queues[qIndex].sendMark));
+						}
+						if (Thread->queues[qIndex].sent < Thread->queues[qIndex].frameperfile) {
+							Processed |= ProcessTx(&Thread->queues[qIndex], Thread->wait);
+						}
+					}
+				}
+				if (Thread->queues[qIndex].sent >= Thread->queues[qIndex].frameperfile) {
+					LARGE_INTEGER now;
+					QueryPerformanceCounter(&now);
+					Thread->queues[qIndex].sending = false;
+					Thread->queues[qIndex].sent = 0;
+					Thread->queues[qIndex].donefiles++;
+					if (Thread->queues[qIndex].donefiles % 1000 == 0) {
+						printf("Sent %d samples\n", Thread->queues[qIndex].donefiles);
+					}
+				}
+				/*
+				if (Thread->queues[qIndex].received < Thread->queues[qIndex].frameperfile) {
+					Processed |= !!ProcessRx(&Thread->queues[qIndex], Thread->wait);
+				}
+				if (Thread->queues[qIndex].sent == Thread->queues[qIndex].frameperfile) {
+					Thread->queues[qIndex].donefiles++;
+					if (Thread->queues[qIndex].received == Thread->queues[qIndex].frameperfile) {
+						Thread->queues[qIndex].received = 0;
+						Thread->queues[qIndex].sent = 0;
+						LARGE_INTEGER receivedMark;
+						QueryPerformanceCounter(&receivedMark);
+						if (Thread->queues[qIndex].latIndex < Thread->queues[qIndex].latSamplesCount) {
+							Thread->queues[qIndex].latSamples[Thread->queues[qIndex].latIndex++] = receivedMark.QuadPart - Thread->queues[qIndex].sendMark.QuadPart;
+						}
+						//printf("sent:%d, received: %d\n", Thread->queues[qIndex].sent, Thread->queues[qIndex].received);
+						Sleep(1);
+					}
+				}
+				*/
+			}
 //-huajianwang:eelat
         }
 
@@ -1696,8 +1708,9 @@ ParseQueueArgs(
     Queue->latSamplesCount = DEFAULT_LAT_COUNT;
 
     //huajianwang:eelat
-    Queue->filebatch = DEFAULT_FILE_BATCH;
-    Queue->tokencapacity = DEFAULT_TOKEN_CAPACITY;
+    Queue->frameperfile = DEFAULT_FRAMES_PER_FILE;
+    Queue->filerate = DEFAULT_FILE_RATE;
+    Queue->framerate = DEFAULT_FRAME_RATE;
     //-huajianwang:eelat
 
     for (INT i = 0; i < argc; i++) {
@@ -1740,20 +1753,26 @@ ParseQueueArgs(
             Queue->iobatchsize = atoi(argv[i]);
             //huajianwang:eelat
         }
-        else if (!strcmp(argv[i], "-fb")) {
+        else if (!strcmp(argv[i], "-framerate")) {
             if (++i >= argc) {
                 Usage();
             }
-            Queue->filebatch = atoi(argv[i]);
+            Queue->framerate = atoi(argv[i]);
+        }
+        else if (!strcmp(argv[i], "-filerate")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            Queue->filerate = atoi(argv[i]);
+        }
+        else if (!strcmp(argv[i], "-frameperfile")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            Queue->frameperfile = atoi(argv[i]);
             Queue->sent = 0;
             Queue->received = 0;
             Queue->donefiles = 0;
-        }
-        else if (!strcmp(argv[i], "-tc")) {
-            if (++i >= argc) {
-                Usage();
-            }
-            Queue->tokencapacity = atoi(argv[i]);
             //-huajianwang:eelat
         }
         else if (!strcmp(argv[i], "-h")) {
