@@ -13,6 +13,10 @@
 #include <stdlib.h>
 #include "OLSHighPerfTimer.h"
 
+#include <winsock2.h>
+#include <netiodef.h>
+#include <ws2ipdef.h>
+
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 
 #define SHALLOW_STR_OF(x) #x
@@ -667,15 +671,27 @@ SetupSock(
     XskRingInitialize(&Queue->freeRing, &freeRingInfo);
     PrintRing("free", freeRingInfo);
 
+    // Disable the checksum when sending udp traffic.
+    if(Queue->txPattern){
+        IPV4_HEADER* IpHeader = (IPV4_HEADER*)((UINT8*)Queue->txPattern + sizeof(ETHERNET_HEADER));
+        if (IpHeader->Protocol == IPPROTO_UDP) {
+			printf("The workload is UDP buffer. Disable the checksum on the udp header\n");
+			UINT16* UdpHeader = (UINT16*)((UINT8*)Queue->txPattern + sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER));
+			UdpHeader[3] = 0;
+        }
+    }
+
     UINT64 desc = 0;
     for (UINT32 i = 0; i < numDescriptors; i++) {
         UINT64* Descriptor = (UINT64*)XskRingGetElement(&Queue->freeRing, i);
         *Descriptor = desc;
 
         if (mode == ModeTx || mode == ModeLat) {
-            memcpy(
-                (UCHAR*)Queue->umemReg.Address + desc + Queue->umemheadroom, Queue->txPattern,
-                Queue->txPatternLength);
+            if (Queue->txPattern) {
+                memcpy(
+                    (UCHAR*)Queue->umemReg.Address + desc + Queue->umemheadroom, Queue->txPattern,
+                    Queue->txPatternLength);
+            }
         }
 
         desc += Queue->umemchunksize;
