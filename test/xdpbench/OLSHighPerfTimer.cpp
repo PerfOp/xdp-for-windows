@@ -168,3 +168,55 @@ BOOL QueryPerformanceFrequency(_Out_ LARGE_INTEGER* lpFrequency)
 }
 
 #endif // OLS_PLATFORM_LINUX
+
+INT64 QpcToUs64(INT64 Qpc, INT64 QpcFrequency)
+{
+    //
+    // Multiply by a big number (1000000, to convert seconds to microseconds)
+    // and divide by a big number (QpcFrequency, to convert counts to secs).
+    //
+    // Avoid overflow with separate multiplication/division of the high and low
+    // bits.
+    //
+    // Taken from QuicTimePlatToUs64 (https://github.com/microsoft/msquic).
+    //
+    UINT64 High = (Qpc >> 32) * 1000000;
+    UINT64 Low = (Qpc & MAXUINT32) * 1000000;
+    return
+        ((High / QpcFrequency) << 32) +
+        ((Low + ((High % QpcFrequency) << 32)) / QpcFrequency);
+}
+
+
+void sTokenBucket::init_token_bucket(int init_capacity, int init_refill_rate) {
+    capacity = init_capacity;
+    tokens = init_capacity;
+    refill_rate = init_refill_rate;
+    QueryPerformanceFrequency(&(FreqQpc));
+    QueryPerformanceCounter(&(lastCounter));
+	//bucket->last_refill = time(NULL);
+}
+void sTokenBucket::refill_tokens() {
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    INT64 elapsedns = QpcToUs64(now.QuadPart - lastCounter.QuadPart, FreqQpc.QuadPart);
+    int new_tokens = (int)((double)(elapsedns / 1e6) * (double)refill_rate);
+
+    if (new_tokens > 0) {
+        tokens = tokens + new_tokens > capacity ? capacity : tokens + new_tokens;
+        lastCounter.QuadPart = now.QuadPart;
+    }
+}
+
+int sTokenBucket::consume_tokens(int applytokens) {
+
+    refill_tokens();
+
+    if (tokens >= applytokens) {
+        tokens -= applytokens;
+        return 1;
+    }
+    else {
+        return 0;
+    }
+}

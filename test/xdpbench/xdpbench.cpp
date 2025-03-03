@@ -163,19 +163,12 @@ QpcToUs64(
     INT64 Qpc,
     INT64 QpcFrequency
 );
-typedef struct {
-    int capacity;
-    int tokens;
-    int refill_rate;
-    //time_t last_refill;
-    LARGE_INTEGER FreqQpc;
-    LARGE_INTEGER lastCounter;
-} sTokenBucket;
 
-void init_token_bucket(sTokenBucket* bucket, int capacity, int refill_rate) {
-    bucket->capacity = capacity;
-    bucket->tokens = capacity;
-    bucket->refill_rate = refill_rate;
+/*
+void init_token_bucket(sTokenBucket* bucket, int init_capacity, int init_refill_rate) {
+    bucket->capacity = init_capacity;
+    bucket->tokens = init_capacity;
+    bucket->refill_rate = init_refill_rate;
     QueryPerformanceFrequency(&(bucket->FreqQpc));
     QueryPerformanceCounter(&(bucket->lastCounter));
     //bucket->last_refill = time(NULL);
@@ -193,17 +186,18 @@ void refill_tokens(sTokenBucket* bucket) {
     }
 }
 
-int consume_tokens(sTokenBucket* bucket, int tokens) {
+int consume_tokens(sTokenBucket* bucket, int applytokens) {
     refill_tokens(bucket);
 
-    if (bucket->tokens >= tokens) {
-        bucket->tokens -= tokens;
+    if (bucket->tokens >= applytokens) {
+        bucket->tokens -= applytokens;
         return 1;
     }
     else {
         return 0;
     }
 }
+*/
 
 typedef enum {
     ModeRx,
@@ -798,28 +792,6 @@ batchCmp(
     return *b - *a;
 }
 
-INT64
-QpcToUs64(
-    INT64 Qpc,
-    INT64 QpcFrequency
-)
-{
-    //
-    // Multiply by a big number (1000000, to convert seconds to microseconds)
-    // and divide by a big number (QpcFrequency, to convert counts to secs).
-    //
-    // Avoid overflow with separate multiplication/division of the high and low
-    // bits.
-    //
-    // Taken from QuicTimePlatToUs64 (https://github.com/microsoft/msquic).
-    //
-    UINT64 High = (Qpc >> 32) * 1000000;
-    UINT64 Low = (Qpc & MAXUINT32) * 1000000;
-    return
-        ((High / QpcFrequency) << 32) +
-        ((Low + ((High % QpcFrequency) << 32)) / QpcFrequency);
-}
-
 VOID
 PrintFinalLatStats(
     MY_QUEUE * Queue
@@ -1276,8 +1248,10 @@ DoTxMode(
     printf("Sending...\n");
     SetEvent(Thread->readyEvent);
     for (UINT32 qI = 0; qI < Thread->queueCount; qI++) {
-        init_token_bucket(&(Thread->queues[qI].filebucket), Thread->queues[qI].filerate, Thread->queues[qI].filerate);
-        init_token_bucket(&(Thread->queues[qI].packetbucket), Thread->queues[qI].iobatchsize, Thread->queues[qI].framerate);
+        //init_token_bucket(&(Thread->queues[qI].filebucket), Thread->queues[qI].filerate, Thread->queues[qI].filerate);
+        //init_token_bucket(&(Thread->queues[qI].packetbucket), Thread->queues[qI].iobatchsize, Thread->queues[qI].framerate);
+        Thread->queues[qI].filebucket.init_token_bucket(Thread->queues[qI].filerate, Thread->queues[qI].filerate);
+        Thread->queues[qI].packetbucket.init_token_bucket(Thread->queues[qI].iobatchsize, Thread->queues[qI].framerate);
         Thread->queues[qI].sending = false;
     }
 
@@ -1291,12 +1265,12 @@ DoTxMode(
 			else {
 				//huajianwang:eelat
 				if (Thread->queues[qIndex].sent == 0) {
-					if (consume_tokens(&Thread->queues[qIndex].filebucket, 1) != 0) {
+					if (Thread->queues[qIndex].filebucket.consume_tokens( 1) != 0) {
 						Thread->queues[qIndex].sending = true;
 					}
 				}
 				if (Thread->queues[qIndex].sending) {
-					if ((consume_tokens(&Thread->queues[qIndex].packetbucket, Thread->queues[qIndex].iobatchsize) != 0)) {
+					if ((Thread->queues[qIndex].packetbucket.consume_tokens(Thread->queues[qIndex].iobatchsize) != 0)) {
 						if (Thread->queues[qIndex].sent == 0) {
 							QueryPerformanceCounter(&(Thread->queues[qIndex].sendMark));
 						}

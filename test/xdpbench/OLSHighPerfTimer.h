@@ -109,3 +109,17 @@ public:
         }
     }
 };
+INT64 QpcToUs64(INT64 Qpc, INT64 QpcFrequency);
+
+class sTokenBucket {
+    int capacity;
+    int tokens;
+    int refill_rate;
+    //time_t last_refill;
+    LARGE_INTEGER FreqQpc;
+    LARGE_INTEGER lastCounter;
+public:
+	void init_token_bucket( int init_capacity, int init_refill_rate);
+	void refill_tokens();
+	int consume_tokens(int applytokens);
+};
