@@ -1004,7 +1004,7 @@ ReadRxPackets(
 
         //huajianwang:eelat
         INT64 UNALIGNED* Timestamp = (INT64 UNALIGNED*)
-            ((CHAR*)Queue->umemReg.Address + rxDesc->Address.BaseAddress + rxDesc->Address.Offset + 48);
+            ((CHAR*)Queue->umemReg.Address + rxDesc->Address.BaseAddress + rxDesc->Address.Offset + 42);
         end = *Timestamp;
         donefiles = Timestamp[1];
         UINT32 idx = (UINT32)donefiles;
@@ -1135,7 +1135,7 @@ WriteTxPackets(
 
         //huajianwang:eelat
         INT64 UNALIGNED* Timestamp = (INT64 UNALIGNED*)
-            ((CHAR*)Queue->umemReg.Address + txDesc->Address.BaseAddress + txDesc->Address.Offset + 48);
+            ((CHAR*)Queue->umemReg.Address + txDesc->Address.BaseAddress + txDesc->Address.Offset + 42);
         *Timestamp = Queue->sendMark.QuadPart;
         Timestamp[1] = Queue->donefiles;
         Queue->sent++;
