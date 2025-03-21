@@ -1,6 +1,5 @@
 //
 // Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 //
 
 #include <afxdp_helper.h>
@@ -15,6 +14,8 @@
 
 #include <winsock2.h>
 #include <netiodef.h>
+#include <string>
+#include <vector>
 #include <ws2ipdef.h>
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
@@ -800,6 +801,34 @@ PrintFinalLatStats(
     LARGE_INTEGER FreqQpc;
     VERIFY(QueryPerformanceFrequency(&FreqQpc));
 
+    // Export original counters before sort
+    std::vector<uint8_t> buffer;
+    std::string tableHeader = "latIndex,latIndexvalue,orderSamples,orderSamplesVal\n";
+    buffer.insert(buffer.end(), tableHeader.begin(), tableHeader.end());
+    for (UINT32 i = 0; i < Queue->latIndex; i++)
+    {
+        std::string row = std::to_string(i) + "," + std::to_string(Queue->latSamples[i]) + "," +
+                          std::to_string(i) + "," + std::to_string(Queue->orderSamples[i]) + "\n";
+        buffer.insert(buffer.end(), row.begin(), row.end());
+    }
+    
+    // davidxie: write to buffer
+    // Payload need to >= 20 bytes (16 byte will wrap around to 0 beyond 65535)
+    FILE* file;
+    if (fopen_s(&file, "xdpbench_counters.csv", "wb") != 0) {
+        printf("Failed to open the xdpbench_counters.csv file for writing\n");
+        return;
+    }
+    const size_t bytesWritten = fwrite(buffer.data(), sizeof(uint8_t), buffer.size(), file);
+    if (bytesWritten != buffer.size()) {
+        printf("Error writing to the csv file!\n");
+        fclose(file);
+        return;
+    }
+
+    // Close the text file
+    fclose(file);
+    
     qsort(Queue->latSamples, Queue->latIndex, sizeof(*Queue->latSamples), LatCmp);
 
     for (UINT32 i = 0; i < Queue->latIndex; i++) {
@@ -817,6 +846,46 @@ PrintFinalLatStats(
         Queue->latSamples[(UINT32)(Queue->latIndex * 0.9999)],
         Queue->latSamples[(UINT32)(Queue->latIndex * 0.99999)],
         Queue->latSamples[(UINT32)(Queue->latIndex * 0.999999)]);
+
+    // If latIndex >= 1,000,000 - 1, print out first pkt loss percentiles for first 1,000,000 values, then print out total pkt loss
+    if (Queue->latIndex >= 1000000 - 1)
+    {
+        printf("BEGIN print idx where experience pkt loss for first 1 million samples\n");
+        qsort(Queue->orderSamples, 1000000, sizeof(*Queue->orderSamples), batchCmp);
+        const INT32 first_val = Queue->orderSamples[0];
+        UINT64 total_pkt_lost = 0; // Need to compute pkt lost rate in addition to file lost/incomplete rate
+        bool printed_first_loss = false;
+        bool printed_first_zero = false;
+        for (UINT32 i = 0; i < 1000000; i = i + 1)
+        {
+            const INT32 curr_val = Queue->orderSamples[i];
+            if (first_val > curr_val)
+            {
+                if (!printed_first_loss)
+                {
+                    printf("Experience first packet loss at idx %u, and the value is %d \n", i, curr_val);
+                    printed_first_loss = true;
+                }
+                const INT32 loss = first_val - curr_val; // curr_val means pkt received in a file
+                if (total_pkt_lost > UINT64_MAX - loss)
+                {
+                    printf("WARNING: total pkt loss exceeds uint64 max value, will stop incrementing");
+                } else {
+                    total_pkt_lost = total_pkt_lost + loss;
+                }
+            }
+            if (!printed_first_zero && 0 == curr_val)
+            {
+                printf("Experience first zero at idx %d \n", i);
+                printed_first_zero = true;
+            }
+        }
+        printf("Total pkt lost is %llu, pkt lost rate is %04f percent \n", total_pkt_lost, (FLOAT)total_pkt_lost / 10000);
+        printf("End print idx where experience pkt loss for first 1 million samples\n");
+    } else {
+        printf("Received less than 1 million samples, will only show pkt loss percentiles for entire samples\n");
+    }
+    
     //huajianwang:eelat
     qsort(Queue->orderSamples, Queue->latIndex, sizeof(*Queue->orderSamples), batchCmp);
 
@@ -1247,6 +1316,7 @@ DoTxMode(
 
     printf("Sending...\n");
     SetEvent(Thread->readyEvent);
+    // One Queue, no need to worry about multiple queues
     for (UINT32 qI = 0; qI < Thread->queueCount; qI++) {
         //init_token_bucket(&(Thread->queues[qI].filebucket), Thread->queues[qI].filerate, Thread->queues[qI].filerate);
         //init_token_bucket(&(Thread->queues[qI].packetbucket), Thread->queues[qI].iobatchsize, Thread->queues[qI].framerate);
