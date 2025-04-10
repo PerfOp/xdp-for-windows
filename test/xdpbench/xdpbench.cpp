@@ -816,6 +816,10 @@ PrintFinalLatStats(
     LARGE_INTEGER FreqQpc;
     VERIFY(QueryPerformanceFrequency(&FreqQpc));
 
+    for (UINT32 i = 0; i < Queue->latIndex; i++) {
+        Queue->latSamples[i] = QpcToUs64(Queue->latSamples[i], FreqQpc.QuadPart);
+    }
+    
     // Export original counters before sort
     std::vector<uint8_t> buffer;
     std::string tableHeader = "latIndex,latIndexvalue,orderSamples,orderSamplesVal\n";
@@ -845,10 +849,6 @@ PrintFinalLatStats(
     fclose(file);
     
     qsort(Queue->latSamples, Queue->latIndex, sizeof(*Queue->latSamples), LatCmp);
-
-    for (UINT32 i = 0; i < Queue->latIndex; i++) {
-        Queue->latSamples[i] = QpcToUs64(Queue->latSamples[i], FreqQpc.QuadPart);
-    }
 
     printf(
         "%-3s[%d]: min=%llu P50=%llu P90=%llu P99=%llu P99.9=%llu P99.99=%llu P99.999=%llu P99.9999=%llu us rtt\n",
