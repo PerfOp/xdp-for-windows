@@ -52,7 +52,7 @@
 //-huajianwang:eelat
 
 CHAR* HELP =
-"xskbench.exe <rx|tx|fwd|lat> -i <ifindex> [OPTIONS] <-t THREAD_PARAMS> [-t THREAD_PARAMS...] \n"
+"xskbench.exe <rx|tx|fwd|lat|down> -i <ifindex> [OPTIONS] <-t THREAD_PARAMS> [-t THREAD_PARAMS...] \n"
 "\n"
 "THREAD_PARAMS: \n"
 "   -q <QUEUE_PARAMS> [-q QUEUE_PARAMS...] \n"
@@ -86,6 +86,8 @@ CHAR* HELP =
 "                      Default: " STR_OF(DEFAULT_FRAME_RATE) "\n"
 "   -filerate <filerate>     The rate for sending files (per second)\n"
 "                      Default: " STR_OF(DEFAULT_FILE_RATE) "\n"
+"   -fpg <frames/group>     The frames per group for downloading mode.\n"
+"                      Default: 1\n"
 "   -framesperfile     The  (in packets) of the File to benchmark throughput\n"
 "                      Default: " STR_OF(DEFAULT_FRAMES_PER_FILE) "\n"
 "   -txio <txiosize>   The size (in bytes) of each IO in tx mode\n"
@@ -200,11 +202,14 @@ int consume_tokens(sTokenBucket* bucket, int applytokens) {
 }
 */
 
+UINT32 g_downSentMark = 0;
+
 typedef enum {
     ModeRx,
     ModeTx,
     ModeFwd,
     ModeLat,
+    ModeDown,
 } MODE;
 
 typedef enum {
@@ -227,8 +232,8 @@ typedef struct {
     UCHAR* txPattern;
     UINT32 txPatternLength;
     INT64* latSamples;
-    //huajianwang:eelat
-    INT32* orderSamples;
+    //huajianwang: storing the maximum frame order in receiving batch of frames.
+    UINT32* orderSamples;
     //-huajianwang:eelat
     UINT32 latSamplesCount;
     UINT32 latIndex;
@@ -267,8 +272,9 @@ typedef struct {
     UINT32 framerate;
     UINT32 sent;
     UINT32 received;
-    UINT32 donefiles;
-    LARGE_INTEGER sendMark;
+    UINT64 doneSamplesOnTxMode;
+    UINT32 fpg;
+    LARGE_INTEGER sendStartMark;
     sTokenBucket filebucket;
     sTokenBucket packetbucket;
     bool sending;
@@ -296,8 +302,17 @@ BOOLEAN verbose = FALSE;
 BOOLEAN done = FALSE;
 BOOLEAN largePages = FALSE;
 MODE mode;
+int waitingFlag = 0;
 CHAR* modestr;
 HANDLE periodicStatsEvent;
+    
+LARGE_INTEGER g_FreqQpc;
+    
+//huajianwang: used to store the time stamp and order to mark the TX packets as the download workload.
+// These two values are both from the download request from the remote client matchine.
+LONGLONG g_downReqMark = 0;
+UINT64 g_downReqOrder = 0;
+//-huajianwang:eelat
 
 UINT32
 RingPairReserve(
@@ -681,7 +696,7 @@ SetupSock(
         UINT64* Descriptor = (UINT64*)XskRingGetElement(&Queue->freeRing, i);
         *Descriptor = desc;
 
-        if (mode == ModeTx || mode == ModeLat) {
+        if (mode == ModeTx || mode == ModeLat || mode == ModeDown) {
             if (Queue->txPattern) {
                 memcpy(
                     (UCHAR*)Queue->umemReg.Address + desc + Queue->umemheadroom, Queue->txPattern,
@@ -986,11 +1001,11 @@ PrintFinalStats(
         modestr, Queue->queueId, avg, stdDev, min, max);
 
     //huajianwang:eelat
-    if (mode == ModeLat || mode == ModeRx) {
+    if (mode == ModeLat || mode == ModeRx || mode == ModeDown) {
         PrintFinalLatStats(Queue);
     }
     if (mode == ModeTx) {
-        printf("Send batch as %d with %d samples\n", Queue->frameperfile, Queue->donefiles);
+        printf("Send batch as %d with %llu samples\n", Queue->frameperfile, Queue->doneSamplesOnTxMode);
     }
     //-huajianwang:eelat
 }
@@ -1054,7 +1069,59 @@ WriteFillPackets(
 }
 
 VOID
-ReadRxPackets(
+ReadRxPacketsTimeStamp(
+    MY_QUEUE * Queue,
+    UINT32 RxConsumerIndex,
+    UINT32 FreeProducerIndex,
+    UINT32 Count
+)
+{
+
+    for (UINT32 i = 0; i < Count; i++) {
+        XSK_BUFFER_DESCRIPTOR* rxDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&Queue->rxRing, RxConsumerIndex++);
+
+        //huajianwang:eelat
+        INT64 UNALIGNED* Timestamp = (INT64 UNALIGNED*)
+            ((CHAR*)Queue->umemReg.Address + rxDesc->Address.BaseAddress + rxDesc->Address.Offset + 42);
+		//LONGLONG cur;
+        //cur = *Timestamp;
+        //cur -= g_downReqMark;
+        g_downReqMark = *Timestamp;
+		g_downReqOrder = Timestamp[1];
+		//printf("====%lld us\n", QpcToUs64(cur, g_FreqQpc.QuadPart));
+        // printf("====%lld th requests\n", g_downReqOrder);
+        //-huajianwang:eelat
+
+        UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, FreeProducerIndex++);
+
+        *freeDesc = rxDesc->Address.BaseAddress;
+        printf_verbose("Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
+            rxDesc->Address.BaseAddress, rxDesc->Address.Offset, rxDesc->Length);
+    }
+}
+
+VOID
+ReadRxPacketsLight(
+    MY_QUEUE * Queue,
+    UINT32 RxConsumerIndex,
+    UINT32 FreeProducerIndex,
+    UINT32 Count
+)
+{
+    for (UINT32 i = 0; i < Count; i++) {
+        XSK_BUFFER_DESCRIPTOR* rxDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&Queue->rxRing, RxConsumerIndex++);
+
+        UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, FreeProducerIndex++);
+
+        *freeDesc = rxDesc->Address.BaseAddress;
+        printf_verbose("Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
+            rxDesc->Address.BaseAddress, rxDesc->Address.Offset, rxDesc->Length);
+    }
+}
+
+
+VOID
+ReadRxPacketsForLatency(
     MY_QUEUE * Queue,
     UINT32 RxConsumerIndex,
     UINT32 FreeProducerIndex,
@@ -1063,9 +1130,7 @@ ReadRxPackets(
 {
     //huajianwang:eelat
     LONGLONG end = 0;
-    LONGLONG donefiles = 0;
-    LARGE_INTEGER now;
-    QueryPerformanceCounter(&now);
+    LONGLONG packetorder = 0;
     //-huajianwang:eelat
 
     for (UINT32 i = 0; i < Count; i++) {
@@ -1075,14 +1140,19 @@ ReadRxPackets(
         INT64 UNALIGNED* Timestamp = (INT64 UNALIGNED*)
             ((CHAR*)Queue->umemReg.Address + rxDesc->Address.BaseAddress + rxDesc->Address.Offset + 42);
         end = *Timestamp;
-        donefiles = Timestamp[1];
-        UINT32 idx = (UINT32)donefiles;
+        packetorder = Timestamp[1];
+        UINT32 idx = (UINT32)packetorder;
         if (idx < Queue->latSamplesCount) {
             if (idx > Queue->latIndex) {
-                Queue->latIndex = (UINT32)donefiles;
+                Queue->latIndex = idx;
             }
-            Queue->latSamples[idx] = max(now.QuadPart - end, Queue->latSamples[donefiles]);
             Queue->orderSamples[idx]++;
+            if (Queue->orderSamples[idx] == Queue->fpg) {
+                LARGE_INTEGER now;
+                QueryPerformanceCounter(&now);
+				Queue->latSamples[idx] = max(now.QuadPart - end, Queue->latSamples[idx]);
+                //printf("record the latency for the %d th files %lld us\n", idx, QpcToUs64(Queue->latSamples[idx], g_FreqQpc.QuadPart));
+            }
         }
         Queue->received++;
         //-huajianwang:eelat
@@ -1093,6 +1163,64 @@ ReadRxPackets(
         printf_verbose("Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
             rxDesc->Address.BaseAddress, rxDesc->Address.Offset, rxDesc->Length);
     }
+}
+
+UINT32
+ProcessRxTimeStamp(
+    MY_QUEUE * Queue,
+    BOOLEAN Wait
+)
+{
+    XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
+    UINT32 available;
+    UINT32 consumerIndex;
+    UINT32 producerIndex;
+    UINT32 processed = 0;
+
+    available =
+        RingPairReserve(
+            &Queue->rxRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
+    if (available > 0) {
+        ReadRxPacketsTimeStamp(Queue, consumerIndex, producerIndex, available);
+        XskRingConsumerRelease(&Queue->rxRing, available);
+        XskRingProducerSubmit(&Queue->freeRing, available);
+
+        processed += available;
+        Queue->packetCount += available;
+        //hjwang: reset the g_downSentMark flag to re start the downloading sending.
+        g_downSentMark = 0;
+    }
+
+    available =
+        RingPairReserve(
+            &Queue->freeRing, &consumerIndex, &Queue->fillRing, &producerIndex, Queue->iobatchsize);
+    if (available > 0) {
+        WriteFillPackets(Queue, consumerIndex, producerIndex, available);
+        XskRingConsumerRelease(&Queue->freeRing, available);
+        XskRingProducerSubmit(&Queue->fillRing, available);
+
+        processed += available;
+        notifyFlags |= XSK_NOTIFY_FLAG_POKE_RX;
+    }
+
+    if (Wait &&
+        XskRingConsumerReserve(&Queue->rxRing, 1, &consumerIndex) == 0 &&
+        XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
+        notifyFlags |= XSK_NOTIFY_FLAG_WAIT_RX;
+    }
+
+    if (Queue->pollMode == XSK_POLL_MODE_SOCKET) {
+        //
+        // If socket poll mode is supported by the program, always enable pokes.
+        //
+        notifyFlags |= XSK_NOTIFY_FLAG_POKE_RX;
+    }
+
+    if (notifyFlags != 0) {
+        NotifyDriver(Queue, notifyFlags);
+    }
+
+    return processed;
 }
 
 UINT32
@@ -1111,12 +1239,13 @@ ProcessRx(
         RingPairReserve(
             &Queue->rxRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
     if (available > 0) {
-        ReadRxPackets(Queue, consumerIndex, producerIndex, available);
+        ReadRxPacketsForLatency(Queue, consumerIndex, producerIndex, available);
         XskRingConsumerRelease(&Queue->rxRing, available);
         XskRingProducerSubmit(&Queue->freeRing, available);
 
         processed += available;
         Queue->packetCount += available;
+        g_downSentMark = 0;
     }
 
     available =
@@ -1182,6 +1311,10 @@ DoRxMode(
     }
 }
 
+// Used for generate TX packets as the download request to the remote server.
+// * Write the timestamp into the TX packet.
+// * Write the id(order) of the file into the packet.
+// * The above two values are both from the local machine.
 VOID
 WriteTxPackets(
     MY_QUEUE * Queue,
@@ -1205,15 +1338,57 @@ WriteTxPackets(
         //huajianwang:eelat
         INT64 UNALIGNED* Timestamp = (INT64 UNALIGNED*)
             ((CHAR*)Queue->umemReg.Address + txDesc->Address.BaseAddress + txDesc->Address.Offset + 42);
-        *Timestamp = Queue->sendMark.QuadPart;
-        Timestamp[1] = Queue->donefiles;
+        *Timestamp = Queue->sendStartMark.QuadPart;
+        Timestamp[1] = Queue->doneSamplesOnTxMode;
         Queue->sent++;
+        //output
+        if (Queue->doneSamplesOnTxMode % 10000 == 0) {
+		    printf("sending %lld samples\n", Queue->doneSamplesOnTxMode);
+        }
         //-huajianwang:eelat
 
         printf_verbose("Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
             txDesc->Address.BaseAddress, txDesc->Address.Offset, txDesc->Length);
     }
 }
+
+// Used to generate the TX packets as the files sent to the client which request downloading.
+// * Write the timestamp into the TX packet.
+// * Write the id(order) of the file into the packet.
+// * The above two values are both from the request for downloading. 
+VOID
+WriteTxDownPackets(
+    MY_QUEUE * Queue,
+    UINT32 FreeConsumerIndex,
+    UINT32 TxProducerIndex,
+    UINT32 Count
+)
+{
+    for (UINT32 i = 0; i < Count; i++) {
+        UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, FreeConsumerIndex++);
+        XSK_BUFFER_DESCRIPTOR* txDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&Queue->txRing, TxProducerIndex++);
+
+        txDesc->Address.BaseAddress = *freeDesc;
+        assert(Queue->umemReg.Headroom <= MAXUINT16);
+        txDesc->Address.Offset = (UINT16)Queue->umemReg.Headroom;
+        txDesc->Length = Queue->txiosize;
+        //
+        // This benchmark does not write data into the TX packet.
+        //
+
+        INT64 UNALIGNED* Timestamp = (INT64 UNALIGNED*)
+            ((CHAR*)Queue->umemReg.Address + txDesc->Address.BaseAddress + txDesc->Address.Offset + 42);
+		// * Write the timestamp, which from the download request, into the TX packet.
+		// * Write the id of the file into the packet.
+		*Timestamp = g_downReqMark;
+        Timestamp[1] = g_downReqOrder;
+        Queue->sent++;
+
+        printf_verbose("Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
+            txDesc->Address.BaseAddress, txDesc->Address.Offset, txDesc->Length);
+    }
+}
+
 
 VOID
 ReadCompletionPackets(
@@ -1302,7 +1477,7 @@ ProcessTx(
 }
 
 VOID
-DoTxMode(
+DoTxModeTokenBucket(
     MY_THREAD * Thread
 )
 {
@@ -1342,7 +1517,9 @@ DoTxMode(
 				if (Thread->queues[qIndex].sending) {
 					if ((Thread->queues[qIndex].packetbucket.consume_tokens(Thread->queues[qIndex].iobatchsize) != 0)) {
 						if (Thread->queues[qIndex].sent == 0) {
-							QueryPerformanceCounter(&(Thread->queues[qIndex].sendMark));
+                            // LONGLONG prev = Thread->queues[qIndex].sendStartMark.QuadPart;
+							QueryPerformanceCounter(&(Thread->queues[qIndex].sendStartMark));
+                            // printf("From last %lld us\n", QpcToUs64((Thread->queues[qIndex].sendStartMark.QuadPart - prev), g_FreqQpc.QuadPart));
 						}
 						if (Thread->queues[qIndex].sent < Thread->queues[qIndex].frameperfile) {
 							Processed |= ProcessTx(&Thread->queues[qIndex], Thread->wait);
@@ -1354,9 +1531,9 @@ DoTxMode(
 					QueryPerformanceCounter(&now);
 					Thread->queues[qIndex].sending = false;
 					Thread->queues[qIndex].sent = 0;
-					Thread->queues[qIndex].donefiles++;
-					if (Thread->queues[qIndex].donefiles % 1000 == 0) {
-						printf("Sent %d samples\n", Thread->queues[qIndex].donefiles);
+					Thread->queues[qIndex].doneSamplesOnTxMode++;
+					if (Thread->queues[qIndex].doneSamplesOnTxMode % 1000 == 0) {
+						printf("Sent %llu samples\n", Thread->queues[qIndex].doneSamplesOnTxMode);
 					}
 				}
 				/*
@@ -1371,7 +1548,7 @@ DoTxMode(
 						LARGE_INTEGER receivedMark;
 						QueryPerformanceCounter(&receivedMark);
 						if (Thread->queues[qIndex].latIndex < Thread->queues[qIndex].latSamplesCount) {
-							Thread->queues[qIndex].latSamples[Thread->queues[qIndex].latIndex++] = receivedMark.QuadPart - Thread->queues[qIndex].sendMark.QuadPart;
+							Thread->queues[qIndex].latSamples[Thread->queues[qIndex].latIndex++] = receivedMark.QuadPart - Thread->queues[qIndex].sendStartMark.QuadPart;
 						}
 						//printf("sent:%d, received: %d\n", Thread->queues[qIndex].sent, Thread->queues[qIndex].received);
 						Sleep(1);
@@ -1389,6 +1566,84 @@ DoTxMode(
         }
 
     }
+}
+
+
+UINT32
+ProcessTxDown(
+    MY_QUEUE * Queue,
+    BOOLEAN Wait
+) {
+    XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
+    UINT32 available;
+    UINT32 consumerIndex;
+    UINT32 producerIndex;
+    UINT32 processed = 0;
+
+    available =
+        RingPairReserve(
+            &Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
+            //&Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
+    if (available > 0) {
+        ReadCompletionPackets(Queue, consumerIndex, producerIndex, available);
+        XskRingConsumerRelease(&Queue->compRing, available);
+        XskRingProducerSubmit(&Queue->freeRing, available);
+
+        processed += available;
+        Queue->packetCount += available;
+
+        if (XskRingProducerReserve(&Queue->txRing, MAXUINT32, &producerIndex) !=
+            Queue->txRing.Size) {
+            notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+        }
+    }
+
+    //huajianwang:eelat
+    //UINT32 nextsent = min(Queue->iobatchsize, Queue->frameperfile - Queue->sent);
+    if(g_downSentMark<Queue->fpg){
+		available =
+			RingPairReserve(
+				&Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, Queue->iobatchsize);
+		//available =
+		//    RingPairReserve(
+		//        &Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, nextsent);
+		//-huajianwang:eelat
+
+		if (available > 0) {
+			WriteTxDownPackets(Queue, consumerIndex, producerIndex, available);
+			XskRingConsumerRelease(&Queue->freeRing, available);
+			XskRingProducerSubmit(&Queue->txRing, available);
+
+			processed += available;
+			notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+		}
+        g_downSentMark += available;
+        /*
+        if (g_downSentMark > Queue->fpg) {
+			printf("Sent %d frames\n", g_downSentMark);
+        }
+        */
+    }
+
+    if (Wait &&
+        XskRingConsumerReserve(&Queue->compRing, 1, &consumerIndex) == 0 &&
+        XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
+        notifyFlags |= XSK_NOTIFY_FLAG_WAIT_TX;
+    }
+
+    if (Queue->pollMode == XSK_POLL_MODE_SOCKET) {
+        //
+        // If socket poll mode is supported by the program, always enable pokes.
+        //
+        notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+    }
+
+    if (notifyFlags != 0) {
+        NotifyDriver(Queue, notifyFlags);
+    }
+
+    return processed;
+
 }
 
 UINT32
@@ -1559,6 +1814,52 @@ DoFwdMode(
         }
 
     }
+}
+
+VOID
+DoDownMode(
+    MY_THREAD * Thread
+)
+{
+    for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
+        MY_QUEUE* queue = &Thread->queues[qIndex];
+
+		if (Thread->queues[qIndex].txPatternLength > 0) {
+			queue->flags.tx = TRUE;
+            queue->flags.rx = FALSE;
+        }
+        else {
+			queue->flags.rx = TRUE;
+            queue->flags.tx = FALSE;
+        }
+        SetupSock(ifindex, queue);
+        queue->lastTick = GetTickCount64();
+    }
+
+    printf("Forwarding...\n");
+    SetEvent(Thread->readyEvent);
+
+    while (!ReadBooleanNoFence(&done)) {
+        BOOLEAN Processed = FALSE;
+
+        for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
+            //Processed |= !!ProcessFwd(&Thread->queues[qIndex], Thread->wait);
+            if (Thread->queues[qIndex].txPatternLength > 0) {
+                Processed |= ProcessTxDown(&Thread->queues[qIndex], Thread->wait);
+            }
+            else{
+                Processed |= !!ProcessRxTimeStamp(&Thread->queues[qIndex], Thread->wait);
+            }
+        }
+
+        if (!Processed) {
+            for (UINT32 i = 0; i < Thread->yieldCount; i++) {
+                YieldProcessor();
+            }
+        }
+
+    }
+
 }
 
 UINT32
@@ -1767,13 +2068,16 @@ ParseQueueArgs(
     Queue->txiosize = DEFAULT_TX_IO_SIZE;
     Queue->latSamplesCount = DEFAULT_LAT_COUNT;
 
+    Queue->txPatternLength = 0; 
     //huajianwang:eelat
     Queue->frameperfile = DEFAULT_FRAMES_PER_FILE;
     Queue->filerate = DEFAULT_FILE_RATE;
     Queue->framerate = DEFAULT_FRAME_RATE;
+    Queue->fpg = 1;
     //-huajianwang:eelat
 
     for (INT i = 0; i < argc; i++) {
+        printf("%s\n", argv[i]);
         if (!_stricmp(argv[i], "-id")) {
             if (++i >= argc) {
                 Usage();
@@ -1825,6 +2129,12 @@ ParseQueueArgs(
             }
             Queue->filerate = atoi(argv[i]);
         }
+        else if (!strcmp(argv[i], "-fpg")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            Queue->fpg = atoi(argv[i]);
+        }
         else if (!strcmp(argv[i], "-frameperfile")) {
             if (++i >= argc) {
                 Usage();
@@ -1832,7 +2142,7 @@ ParseQueueArgs(
             Queue->frameperfile = atoi(argv[i]);
             Queue->sent = 0;
             Queue->received = 0;
-            Queue->donefiles = 0;
+            Queue->doneSamplesOnTxMode = 0;
             //-huajianwang:eelat
         }
         else if (!strcmp(argv[i], "-h")) {
@@ -1926,6 +2236,7 @@ ParseQueueArgs(
     if (mode == ModeLat
         //huajianwang:eelat
         || mode == ModeRx
+        || mode == ModeDown
         //-huajianwang:eelat
         ) {
         ASSERT_FRE(
@@ -1936,7 +2247,7 @@ ParseQueueArgs(
         ZeroMemory(Queue->latSamples, Queue->latSamplesCount * sizeof(*Queue->latSamples));
 
         //huajianwang:eelat 
-        Queue->orderSamples = (INT32*)malloc(Queue->latSamplesCount * sizeof(*Queue->orderSamples));
+        Queue->orderSamples = (UINT32*)malloc(Queue->latSamplesCount * sizeof(*Queue->orderSamples));
         ASSERT_FRE(Queue->orderSamples != NULL);
         ZeroMemory(Queue->orderSamples, Queue->latSamplesCount * sizeof(*Queue->orderSamples));
         //-huajianwang:eelat 
@@ -2060,6 +2371,10 @@ ParseArgs(
     }
     else if (!_stricmp(argv[i], "lat")) {
         mode = ModeLat;
+    }
+    else if (!_stricmp(argv[i], "down")) {
+        mode = ModeDown;
+        waitingFlag = 1;
     }
     else {
         Usage();
@@ -2192,13 +2507,17 @@ DoThread(
         DoRxMode(thread);
     }
     else if (mode == ModeTx) {
-        DoTxMode(thread);
+        // Here the TxMode will trigger request under tokenbucket
+        DoTxModeTokenBucket(thread);
     }
     else if (mode == ModeFwd) {
         DoFwdMode(thread);
     }
     else if (mode == ModeLat) {
         DoLatMode(thread);
+    }
+    else if (mode == ModeDown) {
+        DoDownMode(thread);
     }
 
     return 0;
@@ -2228,6 +2547,8 @@ main(
 {
     MY_THREAD* threads;
     UINT32 threadCount;
+
+    VERIFY(QueryPerformanceFrequency(&g_FreqQpc));
 
     ParseArgs(&threads, &threadCount, argc, argv);
 
