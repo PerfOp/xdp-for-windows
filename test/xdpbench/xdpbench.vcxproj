@@ -16,6 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="OLSHighPerfTimer.h" />
+    <ClInclude Include="xdpbench.h" />
   </ItemGroup>
   <ItemDefinitionGroup>
     <ClCompile>
