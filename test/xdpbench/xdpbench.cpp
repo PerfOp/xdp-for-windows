@@ -125,7 +125,7 @@ int consume_tokens(sTokenBucket* bucket, int applytokens) {
 }
 */
 
-UINT32 g_downSentMark = 0;
+UINT32 g_downSentCount = 0;
 
 typedef enum {
     ModeRx,
@@ -1088,8 +1088,9 @@ ReadRxPacketsForLatency(
     }
 }
 
+// Function to check whether there is any packet in the RX ring as the downloading request.
 UINT32
-ProcessRxTimeStamp(
+ProcessRxOnDownReq(
     MY_QUEUE * Queue,
     BOOLEAN Wait
 )
@@ -1110,8 +1111,10 @@ ProcessRxTimeStamp(
 
         processed += available;
         Queue->packetCount += available;
-        //hjwang: reset the g_downSentMark flag to re start the downloading sending.
-        g_downSentMark = 0;
+        //hjwang: reset the g_downSentCount flag to re start the downloading sending.
+		//When receive any packet, the g_downSentCount will be reset to restart the downloading process.
+        // It is only for benchmarking.
+        g_downSentCount = 0;
     }
 
     available =
@@ -1168,7 +1171,7 @@ ProcessRx(
 
         processed += available;
         Queue->packetCount += available;
-        g_downSentMark = 0;
+        g_downSentCount = 0;
     }
 
     available =
@@ -1264,10 +1267,6 @@ WriteTxPackets(
         *Timestamp = Queue->sendStartMark.QuadPart;
         Timestamp[1] = Queue->doneSamplesOnTxMode;
         Queue->sent++;
-        //output
-        if (Queue->filerate!=0 && Queue->doneSamplesOnTxMode % 10000 == 0) {
-		    printf("sending %lld samples\n", Queue->doneSamplesOnTxMode);
-        }
         //-huajianwang:eelat
 
         printf_verbose("Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
@@ -1441,7 +1440,7 @@ DoTxModeTokenBucket(
 					}
 				}
 				if (Thread->queues[qIndex].sending) {
-					if ((Thread->queues[qIndex].packetbucket.consume_tokens(Thread->queues[qIndex].iobatchsize) != 0)) {
+					//if ((Thread->queues[qIndex].packetbucket.consume_tokens(Thread->queues[qIndex].iobatchsize) != 0)) {
 						if (Thread->queues[qIndex].sent == 0) {
                             // LONGLONG prev = Thread->queues[qIndex].sendStartMark.QuadPart;
 							QueryPerformanceCounter(&(Thread->queues[qIndex].sendStartMark));
@@ -1450,7 +1449,7 @@ DoTxModeTokenBucket(
 						if (Thread->queues[qIndex].sent < Thread->queues[qIndex].frameperfile) {
 							Processed |= ProcessTx(&Thread->queues[qIndex], Thread->wait);
 						}
-					}
+					//}
 				}
 				if (Thread->queues[qIndex].sent >= Thread->queues[qIndex].frameperfile) {
 					LARGE_INTEGER now;
@@ -1494,9 +1493,9 @@ DoTxModeTokenBucket(
     }
 }
 
-
+// TxMode: Sending fpg frames to repsonse the download request.
 UINT32
-ProcessTxDown(
+GenerateDownTx(
     MY_QUEUE * Queue,
     BOOLEAN Wait
 ) {
@@ -1526,7 +1525,7 @@ ProcessTxDown(
 
     //huajianwang:eelat
     //UINT32 nextsent = min(Queue->iobatchsize, Queue->frameperfile - Queue->sent);
-    if(g_downSentMark<Queue->fpg){
+    if(g_downSentCount<Queue->fpg){
 		available =
 			RingPairReserve(
 				&Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, Queue->iobatchsize);
@@ -1543,10 +1542,10 @@ ProcessTxDown(
 			processed += available;
 			notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
 		}
-        g_downSentMark += available;
+        g_downSentCount += available;
         /*
-        if (g_downSentMark > Queue->fpg) {
-			printf("Sent %d frames\n", g_downSentMark);
+        if (g_downSentCount > Queue->fpg) {
+			printf("Sent %d frames\n", g_downSentCount);
         }
         */
     }
@@ -1771,10 +1770,10 @@ DoDownMode(
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
             //Processed |= !!ProcessFwd(&Thread->queues[qIndex], Thread->wait);
             if (Thread->queues[qIndex].txPatternLength > 0) {
-                Processed |= ProcessTxDown(&Thread->queues[qIndex], Thread->wait);
+                Processed |= GenerateDownTx(&Thread->queues[qIndex], Thread->wait);
             }
             else{
-                Processed |= !!ProcessRxTimeStamp(&Thread->queues[qIndex], Thread->wait);
+                Processed |= !!ProcessRxOnDownReq(&Thread->queues[qIndex], Thread->wait);
             }
         }
 
@@ -1787,6 +1786,8 @@ DoDownMode(
     }
 
 }
+
+
 
 UINT32
 ProcessLat(
