@@ -126,6 +126,7 @@ int consume_tokens(sTokenBucket* bucket, int applytokens) {
 */
 
 UINT32 g_downSentCount = 0;
+UINT32 g_upReceiveCount = 0;
 
 typedef enum {
     ModeRx,
@@ -133,6 +134,7 @@ typedef enum {
     ModeFwd,
     ModeLat,
     ModeDown,
+    ModeUp,
 } MODE;
 
 typedef enum {
@@ -225,7 +227,6 @@ BOOLEAN verbose = FALSE;
 BOOLEAN done = FALSE;
 BOOLEAN largePages = FALSE;
 MODE mode;
-int waitingFlag = 0;
 CHAR* modestr;
 HANDLE periodicStatsEvent;
     
@@ -233,7 +234,7 @@ LARGE_INTEGER g_FreqQpc;
     
 //huajianwang: used to store the time stamp and order to mark the TX packets as the download workload.
 // These two values are both from the download request from the remote client matchine.
-LONGLONG g_downReqMark = 0;
+LONGLONG g_reqTimeStamp = 0;
 UINT64 g_downReqOrder = 0;
 //-huajianwang:eelat
 
@@ -619,7 +620,7 @@ SetupSock(
         UINT64* Descriptor = (UINT64*)XskRingGetElement(&Queue->freeRing, i);
         *Descriptor = desc;
 
-        if (mode == ModeTx || mode == ModeLat || mode == ModeDown) {
+        if (mode == ModeTx || mode == ModeLat || mode == ModeDown || mode == ModeUp) {
             if (Queue->txPattern) {
                 memcpy(
                     (UCHAR*)Queue->umemReg.Address + desc + Queue->umemheadroom, Queue->txPattern,
@@ -924,7 +925,7 @@ PrintFinalStats(
         modestr, Queue->queueId, avg, stdDev, min, max);
 
     //huajianwang:eelat
-    if (mode == ModeLat || mode == ModeRx || mode == ModeDown) {
+    if (mode == ModeLat || mode == ModeRx || mode == ModeDown || mode == ModeUp) {
         PrintFinalLatStats(Queue);
     }
     if (mode == ModeTx) {
@@ -1009,7 +1010,7 @@ ReadRxPacketsTimeStamp(
 		//LONGLONG cur;
         //cur = *Timestamp;
         //cur -= g_downReqMark;
-        g_downReqMark = *Timestamp;
+        g_reqTimeStamp = *Timestamp;
 		g_downReqOrder = Timestamp[1];
 		//printf("====%lld us\n", QpcToUs64(cur, g_FreqQpc.QuadPart));
         // printf("====%lld th requests\n", g_downReqOrder);
@@ -1087,6 +1088,68 @@ ReadRxPacketsForLatency(
             rxDesc->Address.BaseAddress, rxDesc->Address.Offset, rxDesc->Length);
     }
 }
+
+// Function to receive FPG packets in the RX ring as the uploading request.
+UINT32
+ProcessRxOnUpReq(
+    MY_QUEUE * Queue,
+    BOOLEAN Wait
+)
+{
+    XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
+    UINT32 available;
+    UINT32 consumerIndex;
+    UINT32 producerIndex;
+    UINT32 processed = 0;
+
+    available =
+        RingPairReserve(
+            &Queue->rxRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
+    if (available > 0) {
+        ReadRxPacketsTimeStamp(Queue, consumerIndex, producerIndex, available);
+        XskRingConsumerRelease(&Queue->rxRing, available);
+        XskRingProducerSubmit(&Queue->freeRing, available);
+
+        processed += available;
+        Queue->packetCount += available;
+        //hjwang: reset the g_downSentCount flag to re start the downloading sending.
+		//When receive any packets, there will be used as the part of uploading requests.
+        // It is only for benchmarking.
+        g_upReceiveCount += available;
+    }
+
+    available =
+        RingPairReserve(
+            &Queue->freeRing, &consumerIndex, &Queue->fillRing, &producerIndex, Queue->iobatchsize);
+    if (available > 0) {
+        WriteFillPackets(Queue, consumerIndex, producerIndex, available);
+        XskRingConsumerRelease(&Queue->freeRing, available);
+        XskRingProducerSubmit(&Queue->fillRing, available);
+
+        processed += available;
+        notifyFlags |= XSK_NOTIFY_FLAG_POKE_RX;
+    }
+
+    if (Wait &&
+        XskRingConsumerReserve(&Queue->rxRing, 1, &consumerIndex) == 0 &&
+        XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
+        notifyFlags |= XSK_NOTIFY_FLAG_WAIT_RX;
+    }
+
+    if (Queue->pollMode == XSK_POLL_MODE_SOCKET) {
+        //
+        // If socket poll mode is supported by the program, always enable pokes.
+        //
+        notifyFlags |= XSK_NOTIFY_FLAG_POKE_RX;
+    }
+
+    if (notifyFlags != 0) {
+        NotifyDriver(Queue, notifyFlags);
+    }
+
+    return processed;
+}
+
 
 // Function to check whether there is any packet in the RX ring as the downloading request.
 UINT32
@@ -1302,7 +1365,7 @@ WriteTxDownPackets(
             ((CHAR*)Queue->umemReg.Address + txDesc->Address.BaseAddress + txDesc->Address.Offset + 42);
 		// * Write the timestamp, which from the download request, into the TX packet.
 		// * Write the id of the file into the packet.
-		*Timestamp = g_downReqMark;
+        *Timestamp = g_reqTimeStamp;
         Timestamp[1] = g_downReqOrder;
         Queue->sent++;
 
@@ -1401,6 +1464,7 @@ ProcessTx(
     return processed;
 }
 
+// TxMode is used to generate requests as controlled RPS on tokenbucket.
 VOID
 DoTxModeTokenBucket(
     MY_THREAD * Thread
@@ -1457,7 +1521,7 @@ DoTxModeTokenBucket(
 					Thread->queues[qIndex].sending = false;
 					Thread->queues[qIndex].sent = 0;
 					Thread->queues[qIndex].doneSamplesOnTxMode++;
-					if (Thread->queues[qIndex].doneSamplesOnTxMode % 1000 == 0) {
+					if (Thread->queues[qIndex].doneSamplesOnTxMode % 10000 == 0) {
 						printf("Sent %llu samples\n", Thread->queues[qIndex].doneSamplesOnTxMode);
 					}
 				}
@@ -1491,6 +1555,79 @@ DoTxModeTokenBucket(
         }
 
     }
+}
+// TxMode: Sending fpg frames to repsonse the download request.
+UINT32
+GenerateUpDoneTx(
+    MY_QUEUE* Queue,
+    BOOLEAN Wait
+) {
+    XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
+    UINT32 available;
+    UINT32 consumerIndex;
+    UINT32 producerIndex;
+    UINT32 processed = 0;
+
+    available =
+        RingPairReserve(
+            &Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, 1);
+    //&Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
+    if (available > 0) {
+        ReadCompletionPackets(Queue, consumerIndex, producerIndex, available);
+        XskRingConsumerRelease(&Queue->compRing, available);
+        XskRingProducerSubmit(&Queue->freeRing, available);
+
+        processed += available;
+        Queue->packetCount += available;
+
+        if (XskRingProducerReserve(&Queue->txRing, MAXUINT32, &producerIndex) !=
+            Queue->txRing.Size) {
+            notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+        }
+    }
+
+    //huajianwang:eelat
+    //UINT32 nextsent = min(Queue->iobatchsize, Queue->frameperfile - Queue->sent);
+	if (g_upReceiveCount > Queue->fpg) {
+		// Got fpg frames as one upload request. Ack to the sender and reset the g_upReceiveCount.
+		available =
+			RingPairReserve(
+				&Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, 1);
+		//available =
+		//    RingPairReserve(
+		//        &Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, nextsent);
+		//-huajianwang:eelat
+
+		if (available > 0) {
+			WriteTxDownPackets(Queue, consumerIndex, producerIndex, available);
+			XskRingConsumerRelease(&Queue->freeRing, available);
+			XskRingProducerSubmit(&Queue->txRing, available);
+
+			processed += available;
+			notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+		}
+		g_upReceiveCount = 0;
+	}
+
+
+    if (Wait &&
+        XskRingConsumerReserve(&Queue->compRing, 1, &consumerIndex) == 0 &&
+        XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
+        notifyFlags |= XSK_NOTIFY_FLAG_WAIT_TX;
+    }
+
+    if (Queue->pollMode == XSK_POLL_MODE_SOCKET) {
+        //
+        // If socket poll mode is supported by the program, always enable pokes.
+        //
+        notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+    }
+
+    if (notifyFlags != 0) {
+        NotifyDriver(Queue, notifyFlags);
+    }
+
+    return processed;
 }
 
 // TxMode: Sending fpg frames to repsonse the download request.
@@ -1741,6 +1878,57 @@ DoFwdMode(
     }
 }
 
+// Upload serving mode: count received packets and response when it reach FPG and will reset it.
+VOID
+DoUpMode(
+    MY_THREAD * Thread
+)
+{
+    for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
+        MY_QUEUE* queue = &Thread->queues[qIndex];
+
+		if (Thread->queues[qIndex].txPatternLength > 0) {
+			queue->flags.tx = TRUE;
+            queue->flags.rx = FALSE;
+        }
+        else {
+			queue->flags.rx = TRUE;
+            queue->flags.tx = FALSE;
+        }
+        SetupSock(ifindex, queue);
+        queue->lastTick = GetTickCount64();
+    }
+
+    printf("Up Forwarding...\n");
+    SetEvent(Thread->readyEvent);
+
+    while (!ReadBooleanNoFence(&done)) {
+        BOOLEAN Processed = FALSE;
+
+        for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
+            //Processed |= !!ProcessFwd(&Thread->queues[qIndex], Thread->wait);
+            if (Thread->queues[qIndex].txPatternLength > 0 ) {
+                //Processed |= GenerateDownTx(&Thread->queues[qIndex], Thread->wait);
+				Processed |= GenerateUpDoneTx(&Thread->queues[qIndex], Thread->wait);
+            }
+            else {
+                Processed |= !!ProcessRxOnUpReq(&Thread->queues[qIndex], Thread->wait);
+
+            }
+        }
+
+        if (!Processed) {
+            for (UINT32 i = 0; i < Thread->yieldCount; i++) {
+                YieldProcessor();
+            }
+        }
+
+    }
+
+}
+
+
+// In simulating the downloading case, no need to use tokenbucket for flow control.
 VOID
 DoDownMode(
     MY_THREAD * Thread
@@ -1761,7 +1949,7 @@ DoDownMode(
         queue->lastTick = GetTickCount64();
     }
 
-    printf("Forwarding...\n");
+    printf("Down Forwarding...\n");
     SetEvent(Thread->readyEvent);
 
     while (!ReadBooleanNoFence(&done)) {
@@ -2164,6 +2352,7 @@ ParseQueueArgs(
         //huajianwang:eelat
         || mode == ModeRx
         || mode == ModeDown
+        || mode == ModeUp
         //-huajianwang:eelat
         ) {
         ASSERT_FRE(
@@ -2301,7 +2490,9 @@ ParseArgs(
     }
     else if (!_stricmp(argv[i], "down")) {
         mode = ModeDown;
-        waitingFlag = 1;
+    }
+    else if (!_stricmp(argv[i], "up")) {
+        mode = ModeUp;
     }
     else {
         Usage();
@@ -2434,7 +2625,7 @@ DoThread(
         DoRxMode(thread);
     }
     else if (mode == ModeTx) {
-        // Here the TxMode will trigger request under tokenbucket
+        // Here the TxMode is used to generate requests as controlled RPS on tokenbucket.
         DoTxModeTokenBucket(thread);
     }
     else if (mode == ModeFwd) {
@@ -2445,6 +2636,9 @@ DoThread(
     }
     else if (mode == ModeDown) {
         DoDownMode(thread);
+    }
+    else if (mode == ModeUp) {
+        DoUpMode(thread);
     }
 
     return 0;
