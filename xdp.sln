@@ -71,6 +71,13 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ringperf", "test\ringperf\r
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpbench", "test\xdpbench\xdpbench.vcxproj", "{C3549FD2-332C-406D-851A-84A0C5F913A3}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpsrv", "test\xdpsrv\xdpsrv.vcxproj", "{0613640D-8447-4C56-92DA-0C7A97686D7E}"
+	ProjectSection(ProjectDependencies) = postProject
+		{D0E57A7A-5703-443E-8A5D-C7E215A8BF0D} = {D0E57A7A-5703-443E-8A5D-C7E215A8BF0D}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "netport", "test\netport\netport.vcxproj", "{D0E57A7A-5703-443E-8A5D-C7E215A8BF0D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM64 = Debug|ARM64
@@ -413,6 +420,22 @@ Global
 		{C3549FD2-332C-406D-851A-84A0C5F913A3}.Release|ARM64.Build.0 = Release|ARM64
 		{C3549FD2-332C-406D-851A-84A0C5F913A3}.Release|x64.ActiveCfg = Release|x64
 		{C3549FD2-332C-406D-851A-84A0C5F913A3}.Release|x64.Build.0 = Release|x64
+		{0613640D-8447-4C56-92DA-0C7A97686D7E}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{0613640D-8447-4C56-92DA-0C7A97686D7E}.Debug|ARM64.Build.0 = Debug|ARM64
+		{0613640D-8447-4C56-92DA-0C7A97686D7E}.Debug|x64.ActiveCfg = Debug|x64
+		{0613640D-8447-4C56-92DA-0C7A97686D7E}.Debug|x64.Build.0 = Debug|x64
+		{0613640D-8447-4C56-92DA-0C7A97686D7E}.Release|ARM64.ActiveCfg = Release|ARM64
+		{0613640D-8447-4C56-92DA-0C7A97686D7E}.Release|ARM64.Build.0 = Release|ARM64
+		{0613640D-8447-4C56-92DA-0C7A97686D7E}.Release|x64.ActiveCfg = Release|x64
+		{0613640D-8447-4C56-92DA-0C7A97686D7E}.Release|x64.Build.0 = Release|x64
+		{D0E57A7A-5703-443E-8A5D-C7E215A8BF0D}.Debug|ARM64.ActiveCfg = Debug|x64
+		{D0E57A7A-5703-443E-8A5D-C7E215A8BF0D}.Debug|ARM64.Build.0 = Debug|x64
+		{D0E57A7A-5703-443E-8A5D-C7E215A8BF0D}.Debug|x64.ActiveCfg = Debug|x64
+		{D0E57A7A-5703-443E-8A5D-C7E215A8BF0D}.Debug|x64.Build.0 = Debug|x64
+		{D0E57A7A-5703-443E-8A5D-C7E215A8BF0D}.Release|ARM64.ActiveCfg = Release|x64
+		{D0E57A7A-5703-443E-8A5D-C7E215A8BF0D}.Release|ARM64.Build.0 = Release|x64
+		{D0E57A7A-5703-443E-8A5D-C7E215A8BF0D}.Release|x64.ActiveCfg = Release|x64
+		{D0E57A7A-5703-443E-8A5D-C7E215A8BF0D}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
