@@ -14,7 +14,8 @@
 
 #include <WinSock2.h>
 #include <ws2tcpip.h>
-#include "helpers.h"
+#include "xdpsrv.h"
+#include "network_utils.h"
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 

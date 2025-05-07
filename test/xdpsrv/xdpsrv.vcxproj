@@ -9,9 +9,11 @@
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemGroup>
+    <ClCompile Include="network_utils.cpp" />
     <ClCompile Include="xdpsrv.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="network_utils.h" />
     <ClInclude Include="xdpsrv.h" />
   </ItemGroup>
   <ItemDefinitionGroup>

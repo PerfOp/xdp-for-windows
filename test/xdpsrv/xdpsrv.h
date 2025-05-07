@@ -1,20 +1,5 @@
 #pragma once
 
-#include <afxdp_helper.h>
-#include <afxdp_experimental.h>
-#include <xdpapi.h>
-
-#include <assert.h>
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include "OLSHighPerfTimer.h"
-
-#include <winsock2.h>
-#include <netiodef.h>
-#include <string>
-#include <vector>
-#include <ws2ipdef.h>
 #include "helpers.h"
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
