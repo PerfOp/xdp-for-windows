@@ -9,8 +9,7 @@
 #include <inaddr.h>
 #include <in6addr.h>
 #include <winsock2.h>
-//#include <netadaptercx.h>
-
+#include <netiodef.h>
 
 #if defined(_KERNEL_MODE) && !defined(htons)
 #define __pkthlp_htons
@@ -25,12 +24,11 @@
 #define STATUS_SUCCESS 0
 #endif
 
-//typedef DL_EUI48 ETHERNET_ADDRESS;
+typedef DL_EUI48 ETHERNET_ADDRESS;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 typedef struct _UDP_HDR {
     UINT16 uh_sport;
@@ -125,7 +123,7 @@ PktChecksum(
 
     return ~PktChecksumFold(Checksum);
 }
-/*
+
 inline
 _Success_(return != FALSE)
 BOOLEAN
@@ -215,12 +213,7 @@ PktBuildUdpFrame(
 
     return TRUE;
 }
-
-*/
-
-
-
-
+/*
 struct iphdr {
     unsigned char ihl : 4, version : 4;
     unsigned char tos;
@@ -248,18 +241,11 @@ struct tcphdr {
     unsigned int ack_seq;
     unsigned char res1 : 4, doff : 4;
     unsigned char fin : 1, syn : 1, rst : 1, psh : 1, ack : 1, urg : 1, ece : 1, cwr : 1;
-    unsigned short window; /*   window size */
-    unsigned short check; /*   tcp checksum */
-    unsigned short urg_ptr; /*   urgent pointer */
+    unsigned short window; //   window size
+    unsigned short check; //   tcp checksum
+    unsigned short urg_ptr; //   urgent pointer
 };
-
-
-typedef struct _ETH_HEADER {
-    UCHAR Destination[6];
-    UCHAR Source[6];
-    USHORT EthType;
-} ETH_HEADER, * PETH_HEADER;
-
+*/
 
 void PrintPacketMeta(_In_ void* buffer);
 
