@@ -1,7 +1,5 @@
 #pragma once
 
-#include "helpers.h"
-
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 
 #define SHALLOW_STR_OF(x) #x

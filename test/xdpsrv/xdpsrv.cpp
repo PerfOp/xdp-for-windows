@@ -1925,10 +1925,10 @@ main(
     MY_THREAD* threads;
     UINT32 threadCount;
 
-    ParseArgs(&threads, &threadCount, argc, argv);
+    AdapterMeta adapterMeta;
+    adapterMeta.getLocalByIP("10.2.1.114");
 
-    IP_ADAPTER_INFO adapterInfo;
-    FindAdapterByIP("10.2.1.114", &adapterInfo);
+    ParseArgs(&threads, &threadCount, argc, argv);
 
     periodicStatsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
     ASSERT_FRE(periodicStatsEvent != NULL);

@@ -10,6 +10,7 @@
 #include <in6addr.h>
 #include <winsock2.h>
 #include <netiodef.h>
+#include <iphlpapi.h>
 
 #if defined(_KERNEL_MODE) && !defined(htons)
 #define __pkthlp_htons
@@ -247,17 +248,27 @@ struct tcphdr {
 };
 */
 
-typedef struct AdapterMeta {
+typedef struct SAdapterMeta {
 	UINT32 ifindex;
 	UINT32 mtu;
 	UINT32 group;
 	UINT32 node;
 	UINT64 cpuAffinity;
     INET_ADDR netAddr;
-    
+    ETHERNET_ADDRESS ethAddr;
+    ADDRESS_FAMILY Af;
+    UINT16 port;
+#ifdef WIN32
+    IP_ADAPTER_INFO adapterInfo;
+#endif
+    BOOL setValue(const char* targetIp, const char* targetMac, UINT16 dstPort);
+    BOOL getLocalByIP(const char* ipStr);
+    BOOL debug_output();
 } AdapterMeta;
+
 VOID* InitUdpPacket(/*BOOL IsUdp*/CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort);
-void InitLocalAdapter(DWORD ifindex);
+//void InitLocalAdapter(DWORD ifindex);
+BOOL FindAdapterByIP(const char* targetIP, VOID* pInfo) ;
 void PrintPacketMeta(_In_ void* buffer);
 
 #ifdef __cplusplus
