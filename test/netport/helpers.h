@@ -24,6 +24,10 @@ void GetIPAddress(
 );
 bool InitAdapter(_In_ DWORD ifIndex);
 
+void FindAdapterByIP(
+    _In_ const char* targetIP, 
+    _Out_ VOID* pInfo);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

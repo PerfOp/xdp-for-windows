@@ -247,6 +247,17 @@ struct tcphdr {
 };
 */
 
+typedef struct AdapterMeta {
+	UINT32 ifindex;
+	UINT32 mtu;
+	UINT32 group;
+	UINT32 node;
+	UINT64 cpuAffinity;
+    INET_ADDR netAddr;
+    
+} AdapterMeta;
+VOID* InitUdpPacket(/*BOOL IsUdp*/CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort);
+void InitLocalAdapter(DWORD ifindex);
 void PrintPacketMeta(_In_ void* buffer);
 
 #ifdef __cplusplus

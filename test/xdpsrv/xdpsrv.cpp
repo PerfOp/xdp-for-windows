@@ -14,6 +14,7 @@
 
 #include <WinSock2.h>
 #include <ws2tcpip.h>
+#include <iphlpapi.h>
 #include "xdpsrv.h"
 #include "network_utils.h"
 
@@ -1925,6 +1926,9 @@ main(
     UINT32 threadCount;
 
     ParseArgs(&threads, &threadCount, argc, argv);
+
+    IP_ADAPTER_INFO adapterInfo;
+    FindAdapterByIP("10.2.1.114", &adapterInfo);
 
     periodicStatsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
     ASSERT_FRE(periodicStatsEvent != NULL);
