@@ -240,9 +240,27 @@ VOID* InitUdpPacket(/*BOOL IsUdp*/CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHA
 
     return PacketBuffer;
 }
+        
+VOID* AdapterMeta::GenMTUBuffer(const char* payload, UINT32 size) {
+    VOID* buffer=InitUdpPacket(verbSrcEthAddr, verbSrcIpAddr, srcPort, verbDstEthAddr, verbDstIpAddr, dstPort, size, size);
+    return buffer;
+}
+        
+BOOL AdapterMeta::fillAdapterInfo(PIP_ADAPTER_INFO padapterinfo) {
+	ifindex = padapterinfo->Index;
+	memcpy(&adapterInfo, padapterinfo, sizeof(IP_ADAPTER_INFO));
+	memcpy(verbSrcIpAddr, padapterinfo->IpAddressList.IpAddress.String, sizeof(verbSrcIpAddr));
+
+    sprintf_s(verbSrcEthAddr, 20, "%02X-%02X-%02X-%02X-%02X-%02X",
+        padapterinfo->Address[0], padapterinfo->Address[1],
+        padapterinfo->Address[2], padapterinfo->Address[3],
+        padapterinfo->Address[4], padapterinfo->Address[5]);
+
+    return TRUE;
+}
 
 //helpers: query the ip and mac via ifindex
-BOOL AdapterMeta::FindAdapterByIP(const char* targetIP) {
+BOOL AdapterMeta::findAdapterByIP(const char* targetIP, const UINT16 srcport) {
     const int ADAPTERNUM = 16;
     PIP_ADAPTER_INFO pAdapterInfo = (PIP_ADAPTER_INFO)&(adapterInfo);
     IP_ADAPTER_INFO pIpAdapterInfo[ADAPTERNUM];
@@ -261,17 +279,15 @@ BOOL AdapterMeta::FindAdapterByIP(const char* targetIP) {
         {
             IP_ADDR_STRING* pIpAddrString = &(cur->IpAddressList);
             if (strcmp(targetIP, pIpAddrString->IpAddress.String) == 0) {
-                memcpy(pAdapterInfo, cur, sizeof(IP_ADAPTER_INFO));
-                memcpy(srcIpAddr, pIpAddrString->IpAddress.String, sizeof(srcIpAddr));
-                printf("ip: %s\n", pIpAddrString->IpAddress.String);
+                fillAdapterInfo(cur);
+				srcPort = srcport;
+                //memcpy(pAdapterInfo, cur, sizeof(IP_ADAPTER_INFO));
+
+                //printf("ip: %s\n", pIpAddrString->IpAddress.String);
+                //printf("mask: %s\n", pIpAddrString->IpMask.String);
+                printf("ip: %s\n", verbSrcIpAddr);
                 printf("mask: %s\n", pIpAddrString->IpMask.String);
-                char macAddr[20] = { 0 };
-                memcpy(srcEthAddr, cur->Address, MAX_ADAPTER_ADDRESS_LENGTH);
-                sprintf_s(macAddr, 20, "%02X:%02X:%02X:%02X:%02X:%02X",
-                    cur->Address[0], cur->Address[1],
-                    cur->Address[2], cur->Address[3],
-                    cur->Address[4], cur->Address[5]);
-                printf("mac:%s\n", macAddr);
+                printf("mac:%s\n", verbSrcEthAddr);
                 break;
             }
         }
@@ -296,8 +312,8 @@ BOOL AdapterMeta::FindAdapterByIP(const char* targetIP) {
     return TRUE;
 }
 
-BOOL AdapterMeta::getLocalByIP(const char* ipaddr) {
-    if (!FindAdapterByIP(ipaddr)) {
+BOOL AdapterMeta::InitLocalByIP(const char* ipaddr, const UINT16 port) {
+    if (!findAdapterByIP(ipaddr, port)) {
         printf("inet_pton failed\n");
         return FALSE;
     }
@@ -305,22 +321,35 @@ BOOL AdapterMeta::getLocalByIP(const char* ipaddr) {
         printf("inet_pton failed\n");
         return FALSE;
     }
-    memcpy(&srcEthAddr, adapterInfo.Address, 6);
+    //memcpy(&verbSrcEthAddr, adapterInfo.Address, 6);
     return TRUE;
 }
 
 BOOL AdapterMeta::debug_output() {
     printf("ifindex: %d\n", ifindex);
     printf("mtu: %d\n", mtu);
-    printf("group: %d\n", group);
-    printf("node: %d\n", node);
-    printf("cpuAffinity: %I64x\n", cpuAffinity);
+    printf("src IP : %s\n", verbSrcIpAddr);
+    printf("dst IP : %s\n", verbDstIpAddr);
+    printf("src mac: %s\n", verbSrcEthAddr);
+    printf("dst mac: %s\n", verbDstEthAddr);
     return TRUE;
 }
 
-BOOL AdapterMeta::setValue(const char* ipaddr, const char* ethaddr, UINT16 port) {
+BOOL AdapterMeta::AssingLocal(const char* ipaddr, const char* ethaddr, UINT16 port) {
+    //const CHAR* Terminator;
+	memcpy(verbSrcIpAddr, ipaddr, sizeof(verbSrcIpAddr));
+
+	memset(verbSrcEthAddr, 0, sizeof(verbSrcEthAddr));
+	memcpy(verbSrcEthAddr, ethaddr, sizeof(verbSrcEthAddr));
+
+	srcPort = port;
+    return TRUE;
+}
+
+BOOL AdapterMeta::SetTarget(const char* ipaddr, const char* ethaddr, UINT16 port) {
     const CHAR* Terminator;
-    //PktStringToInetAddressA
+	memcpy(verbDstIpAddr, ipaddr, sizeof(verbDstIpAddr));
+	memcpy(verbDstEthAddr, ethaddr, sizeof(verbDstEthAddr));
 
     if (!PktStringToInetAddressA(&dstIpAddr, &Af, ipaddr)) {
         return FALSE;
@@ -330,12 +359,12 @@ BOOL AdapterMeta::setValue(const char* ipaddr, const char* ethaddr, UINT16 port)
         return FALSE;
     }
 
-    dstPort = ntohs(port);
+    dstPort = port;
     return TRUE;
 }
         
 BOOL AdapterMeta::selLocalPort(const UINT16 port) {
-	srcPort = htons(port);
+	srcPort = port;
     return TRUE;
 }
 

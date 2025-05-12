@@ -113,7 +113,6 @@ namespace UnitTestExample
     TEST_CLASS(PacketTests)
     {
     public:
-
         TEST_METHOD(TestPacket) {
             char refBuffer[] = "123456789abccba98765432108004500003c000000000111a2d00a0201720a02016c10e104d20028d3090000000000000000000000000000000000000000000000000000000000000000\0";
             UINT32 refSize = (UINT32)strlen(refBuffer);
@@ -137,6 +136,31 @@ namespace UnitTestExample
                 free(mtuBuffer);
             }
         }
+        
+		TEST_METHOD(TestDynamicPacket) {
+			char refBuffer[] = "123456789abccba98765432108004500003c000000000111a2d00a0201720a02016c10e104d20028d3090000000000000000000000000000000000000000000000000000000000000000\0";
+            UINT32 refSize = (UINT32)strlen(refBuffer);
+			BYTE* loadBuffer = (BYTE*)malloc(refSize/2);
+
+            if (loadBuffer != NULL) {
+                GetDescriptorPattern(loadBuffer, refSize, refBuffer);
+            }
+
+            AdapterMeta localAdapter;
+			localAdapter.SetTarget("10.2.1.108", "12-34-56-78-9a-bc", 1234);
+			localAdapter.AssingLocal("10.2.1.114", "cb-a9-87-65-43-21", 4321);
+			BYTE* mtuBuffer = (BYTE*)localAdapter.GenMTUBuffer(refBuffer, 32);
+            Assert::IsNotNull(mtuBuffer);
+            if (loadBuffer != NULL) {
+				for (UINT32 i = 0; i < refSize/2; i++) {
+                    Assert::AreEqual(loadBuffer[i], mtuBuffer[i]);
+				}
+                free(loadBuffer);
+            }
+            if (mtuBuffer != NULL) {
+                free(mtuBuffer);
+            }
+		}
     };
 }
 

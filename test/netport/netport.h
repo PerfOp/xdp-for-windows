@@ -26,6 +26,8 @@
 #define __pkthlp_NTSTATUS
 #define STATUS_SUCCESS 0
 #endif
+        
+const int kMacAddrLength = 18;
 
 typedef DL_EUI48 ETHERNET_ADDRESS;
 
@@ -273,20 +275,33 @@ extern "C" {
         // Remote value
         INET_ADDR dstIpAddr;
         ETHERNET_ADDRESS dstEthAddr;
+        INET_ADDR srcIpAddr;
+        ETHERNET_ADDRESS srcEthAddr;
+        
         UINT16 dstPort;
    
         //Local Value
-        BYTE srcEthAddr[MAX_ADAPTER_ADDRESS_LENGTH];
-        char srcIpAddr[4 * 4];
+        //BYTE verbDstEthAddr[MAX_ADAPTER_ADDRESS_LENGTH];
+        char verbDstEthAddr[kMacAddrLength];
+        char verbDstIpAddr[4 * 4];
+
+        //BYTE verbSrcEthAddr[MAX_ADAPTER_ADDRESS_LENGTH];
+        char verbSrcEthAddr[kMacAddrLength];
+        char verbSrcIpAddr[4 * 4];
         UINT16 srcPort;
 
 #ifdef WIN32
         IP_ADAPTER_INFO adapterInfo;
+        BOOL fillAdapterInfo(PIP_ADAPTER_INFO adapterinfo);
 #endif
-		BOOL FindAdapterByIP(const char* ipaddr);
-        BOOL setValue(const char* ipaddr, const char* ethaddr, UINT16 port);
+        BOOL InitLocalByIP(const char* ip, const UINT16 port=4321);
+        BOOL SetTarget(const char* ipaddr, const char* ethaddr, UINT16 port);
+		BOOL AssingLocal(const char* ipaddr, const char* ethaddr, UINT16 port) ;
+		
+        VOID* GenMTUBuffer(const char* payload, UINT32 size);
+
+		BOOL findAdapterByIP(const char* ipaddr, const UINT16 port);
         BOOL selLocalPort(const UINT16 port);
-        BOOL getLocalByIP(const char* ip);
         BOOL debug_output();
     } AdapterMeta;
 
