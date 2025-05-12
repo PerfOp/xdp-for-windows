@@ -7,6 +7,8 @@
 
 #include <winsock2.h>
 
+#include <stdio.h>
+
 //
 // Directly include some C++ headers that produce benign compiler warnings.
 //
@@ -106,35 +108,34 @@ LogTestWarning(
 }
 
 
-class Calculator {
-public:
-    int Add(int a, int b) { return a + b; }
-    int Subtract(int a, int b) { return a - b; }
-};
-
-
 namespace UnitTestExample
 {
-    TEST_CLASS(CalculatorTests)
+    TEST_CLASS(PacketTests)
     {
     public:
-        TEST_METHOD(TestAdd)
-        {
-            Calculator calc;
-            Assert::AreEqual(5, calc.Add(2, 3));
-        }
-
-        TEST_METHOD(TestSubtract)
-        {
-            Calculator calc;
-            Assert::AreEqual(1, calc.Subtract(3, 2));
-        }
 
         TEST_METHOD(TestPacket) {
-			AdapterMeta adapterMeta;
-            adapterMeta.getLocalByIP("10.12.6.2");
-            CreateUdpPacket(adapterMeta, 4321, "12-34-56-78-9A-BC", "10.12.6.3", 1234);
+            char refBuffer[] = "123456789abccba98765432108004500003c000000000111a2d00a0201720a02016c10e104d20028d3090000000000000000000000000000000000000000000000000000000000000000\0";
+            UINT32 refSize = (UINT32)strlen(refBuffer);
+			BYTE* loadBuffer = (BYTE*)malloc(refSize/2);
 
+            if (loadBuffer != NULL) {
+                GetDescriptorPattern(loadBuffer, refSize, refBuffer);
+            }
+            BYTE* mtuBuffer = NULL;
+            UINT32 PacketLength = 0;
+            mtuBuffer = (BYTE*)InitUdpPacket("cb-a9-87-65-43-21", "10.2.1.114", 4321, "12-34-56-78-9a-bc", "10.2.1.108", 1234, 32, PacketLength);
+
+            Assert::IsNotNull(mtuBuffer);
+            if (loadBuffer != NULL) {
+				for (UINT32 i = 0; i < refSize/2; i++) {
+                    Assert::AreEqual(loadBuffer[i], mtuBuffer[i]);
+				}
+                free(loadBuffer);
+            }
+            if (mtuBuffer != NULL) {
+                free(mtuBuffer);
+            }
         }
     };
 }

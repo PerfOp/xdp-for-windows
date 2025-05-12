@@ -251,28 +251,47 @@ extern "C" {
     };
     */
 
+    UCHAR
+        HexToBin(
+            _In_ CHAR Char
+        );
+
+    VOID
+        GetDescriptorPattern(
+            _Inout_ UCHAR* Buffer,
+            _In_ UINT32 BufferSize,
+            _In_opt_z_ const CHAR* Hex
+        );
+
     typedef struct SAdapterMeta {
         UINT32 ifindex;
         UINT32 mtu;
         UINT32 group;
         UINT32 node;
         UINT64 cpuAffinity;
-        INET_ADDR netAddr;
-        ETHERNET_ADDRESS ethAddr;
         ADDRESS_FAMILY Af;
-        UINT16 port;
+        // Remote value
+        INET_ADDR dstIpAddr;
+        ETHERNET_ADDRESS dstEthAddr;
+        UINT16 dstPort;
+   
+        //Local Value
+        BYTE srcEthAddr[MAX_ADAPTER_ADDRESS_LENGTH];
+        char srcIpAddr[4 * 4];
+        UINT16 srcPort;
+
 #ifdef WIN32
         IP_ADAPTER_INFO adapterInfo;
 #endif
-        BOOL setValue(const char* targetIp, const char* targetMac, UINT16 dstPort);
-        BOOL getLocalByIP(const char* ipStr);
+		BOOL FindAdapterByIP(const char* ipaddr);
+        BOOL setValue(const char* ipaddr, const char* ethaddr, UINT16 port);
+        BOOL selLocalPort(const UINT16 port);
+        BOOL getLocalByIP(const char* ip);
         BOOL debug_output();
     } AdapterMeta;
 
-	VOID* CreateUdpPacket(AdapterMeta localAdapter, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort) ;
-    VOID* InitUdpPacket(/*BOOL IsUdp*/CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort);
-    //void InitLocalAdapter(DWORD ifindex);
-    BOOL FindAdapterByIP(const char* targetIP, VOID* pInfo);
+	VOID* CreateUdpPacket(AdapterMeta localAdapter, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort, UINT32 payloadLength) ;
+	VOID* InitUdpPacket(/*BOOL IsUdp*/CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort, UINT32 PayloadLength, UINT32& bufferLength) ;
 
 
 #ifdef __cplusplus

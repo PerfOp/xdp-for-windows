@@ -353,45 +353,6 @@ Failure:
     ABORT("Failed to acquire large page privileges. See \"Assigning Privileges to an Account\"\n");
 }
 
-UCHAR
-HexToBin(
-    _In_ CHAR Char
-)
-{
-    Char = (CHAR)tolower(Char);
-
-    if (Char >= '0' && Char <= '9') {
-        return (UCHAR)(Char - '0');
-    }
-
-    if (Char >= 'a' && Char <= 'f') {
-        return (UCHAR)(10 + Char - 'a');
-    }
-
-    ASSERT_FRE(!"Invalid hex");
-    return 0;
-}
-
-VOID
-GetDescriptorPattern(
-    _Inout_ UCHAR* Buffer,
-    _In_ UINT32 BufferSize,
-    _In_opt_z_ const CHAR* Hex
-)
-{
-    while (Hex != NULL && *Hex != '\0') {
-        ASSERT_FRE(BufferSize > 0);
-
-        *Buffer = HexToBin(*Hex++);
-        *Buffer <<= 4;
-
-        ASSERT_FRE(*Hex != '\0');
-        *Buffer |= HexToBin(*Hex++);
-
-        Buffer++;
-        BufferSize--;
-    }
-}
 
 _Success_(return)
 BOOLEAN
@@ -1924,7 +1885,13 @@ main(
     /*
     AdapterMeta adapterMeta;
     adapterMeta.getLocalByIP("10.2.1.114");
+    CHAR* udpBuffer = (CHAR*) CreateUdpPacket(adapterMeta, 4321, "12-34-56-78-9A-BC", "10.2.1.108", 1234, 64);
+	if (udpBuffer != NULL) {
+		free(udpBuffer);
+        udpBuffer = NULL;
+	}
     */
+
     ParseArgs(&threads, &threadCount, argc, argv);
 
     periodicStatsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
