@@ -56,6 +56,68 @@ PktStringToInetAddressA(
 }
 #endif
 
+
+VOID* CreateUdpPacket(AdapterMeta localAdapter, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort) {
+    ETHERNET_ADDRESS EthSrc, EthDst;
+    INET_ADDR IpSrc, IpDst;
+    UINT16 PortSrc, PortDst;
+    ADDRESS_FAMILY Af;
+    UCHAR* PayloadBuffer = NULL;
+    UCHAR* PacketBuffer = NULL;
+    UINT32 PacketLength;
+    UINT16 PayloadLength = 64;
+    const CHAR* Terminator;
+
+    if (RtlEthernetStringToAddressA(dstETH, &Terminator, (DL_EUI48*)&EthDst)) {
+        return NULL;
+    }
+
+    if (!PktStringToInetAddressA(&IpDst, &Af, dstIP)) {
+        return NULL;
+    }
+
+    PortSrc = htons(srcPort);
+    PortDst = htons(dstPort);
+
+    //if (IsUdp) {
+    PacketLength = UDP_HEADER_BACKFILL(Af) + PayloadLength;
+    __analysis_assume(PacketLength > UDP_HEADER_BACKFILL(Af));
+    /*
+    }
+    else {
+        PacketLength = TCP_HEADER_BACKFILL(Af) + PayloadLength;
+        __analysis_assume(PacketLength > TCP_HEADER_BACKFILL(Af));
+    }
+    */
+    PayloadBuffer = (UCHAR*)calloc(1, PayloadLength > 0 ? PayloadLength : 1);
+    if (PayloadBuffer == NULL) {
+        return NULL;
+    }
+
+    PacketBuffer = (UCHAR*)malloc(PacketLength);
+
+    if (PacketBuffer == NULL) {
+        return NULL;
+    }
+    else {
+        memset(PacketBuffer, 0, PacketLength);
+    }
+
+    if (!PktBuildUdpFrame(
+        PacketBuffer, &PacketLength, PayloadBuffer, PayloadLength, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
+        PortDst, PortSrc)) {
+		free(PayloadBuffer);
+		free(PacketBuffer);
+        return NULL;
+    }
+    else {
+		free(PayloadBuffer);
+		return PacketBuffer;
+
+    }
+}
+
+
 VOID* InitUdpPacket(/*BOOL IsUdp*/CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort) {
     ETHERNET_ADDRESS EthSrc, EthDst;
     INET_ADDR IpSrc, IpDst;

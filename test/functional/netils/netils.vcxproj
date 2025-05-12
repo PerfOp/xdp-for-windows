@@ -27,13 +27,7 @@
       </Command>
     </PreBuildEvent>
     <ClCompile>
-      <AdditionalIncludeDirectories>
-        $(SolutionDir)test\common\inc;
-        $(SolutionDir)test\functional\inc;
-        $(SolutionDir)test\functional\lib;
-        $(VCInstallDir)UnitTest\include;
-        %(AdditionalIncludeDirectories)
-      </AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)test\netport;$(SolutionDir)test\common\inc;$(SolutionDir)test\functional\inc;$(SolutionDir)test\functional\lib;$(VCInstallDir)UnitTest\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <UseFullPaths>true</UseFullPaths>
     </ClCompile>
     <Link>

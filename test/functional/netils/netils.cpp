@@ -19,13 +19,11 @@
 #include <CppUnitTest.h>
 #include <fntrace.h>
 
+#include "netport.h"
 #include "xdptest.h"
 #include "tests.h"
 #include "util.h"
 #include "tests.tmh"
-#include "netport.h"
-
-
 
 //
 // Define a test method for a feature not yet officially released.
@@ -131,10 +129,8 @@ namespace UnitTestExample
         }
 
         TEST_METHOD(TestPacket) {
-			AdapterMeta adapterMeta;
+            AdapterMeta adapterMeta;
             adapterMeta.getLocalByIP("10.12.6.2");
-            CreateUdpPacket(adapterMeta, 4321, "12-34-56-78-9A-BC", "10.12.6.3", 1234);
-
         }
     };
 }

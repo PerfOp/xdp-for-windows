@@ -269,6 +269,7 @@ extern "C" {
         BOOL debug_output();
     } AdapterMeta;
 
+	VOID* CreateUdpPacket(AdapterMeta localAdapter, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort) ;
     VOID* InitUdpPacket(/*BOOL IsUdp*/CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort);
     //void InitLocalAdapter(DWORD ifindex);
     BOOL FindAdapterByIP(const char* targetIP, VOID* pInfo);
