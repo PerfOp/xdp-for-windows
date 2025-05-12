@@ -78,6 +78,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpsrv", "test\xdpsrv\xdpsr
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "netport", "test\netport\netport.vcxproj", "{D0E57A7A-5703-443E-8A5D-C7E215A8BF0D}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdpsrvtests", "test\xdpsrvtests\xdpsrvtests.vcxproj", "{4FE42683-3525-40D1-904B-BB7F882372E4}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "netils", "test\functional\netils\netils.vcxproj", "{2E5E68EA-0C80-48A8-93B3-DA60D488E4B4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM64 = Debug|ARM64
@@ -436,6 +440,22 @@ Global
 		{D0E57A7A-5703-443E-8A5D-C7E215A8BF0D}.Release|ARM64.Build.0 = Release|x64
 		{D0E57A7A-5703-443E-8A5D-C7E215A8BF0D}.Release|x64.ActiveCfg = Release|x64
 		{D0E57A7A-5703-443E-8A5D-C7E215A8BF0D}.Release|x64.Build.0 = Release|x64
+		{4FE42683-3525-40D1-904B-BB7F882372E4}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{4FE42683-3525-40D1-904B-BB7F882372E4}.Debug|ARM64.Build.0 = Debug|ARM64
+		{4FE42683-3525-40D1-904B-BB7F882372E4}.Debug|x64.ActiveCfg = Debug|x64
+		{4FE42683-3525-40D1-904B-BB7F882372E4}.Debug|x64.Build.0 = Debug|x64
+		{4FE42683-3525-40D1-904B-BB7F882372E4}.Release|ARM64.ActiveCfg = Release|ARM64
+		{4FE42683-3525-40D1-904B-BB7F882372E4}.Release|ARM64.Build.0 = Release|ARM64
+		{4FE42683-3525-40D1-904B-BB7F882372E4}.Release|x64.ActiveCfg = Release|x64
+		{4FE42683-3525-40D1-904B-BB7F882372E4}.Release|x64.Build.0 = Release|x64
+		{2E5E68EA-0C80-48A8-93B3-DA60D488E4B4}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{2E5E68EA-0C80-48A8-93B3-DA60D488E4B4}.Debug|ARM64.Build.0 = Debug|ARM64
+		{2E5E68EA-0C80-48A8-93B3-DA60D488E4B4}.Debug|x64.ActiveCfg = Debug|x64
+		{2E5E68EA-0C80-48A8-93B3-DA60D488E4B4}.Debug|x64.Build.0 = Debug|x64
+		{2E5E68EA-0C80-48A8-93B3-DA60D488E4B4}.Release|ARM64.ActiveCfg = Release|ARM64
+		{2E5E68EA-0C80-48A8-93B3-DA60D488E4B4}.Release|ARM64.Build.0 = Release|ARM64
+		{2E5E68EA-0C80-48A8-93B3-DA60D488E4B4}.Release|x64.ActiveCfg = Release|x64
+		{2E5E68EA-0C80-48A8-93B3-DA60D488E4B4}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

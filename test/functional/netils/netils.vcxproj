@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{2E5E68EA-0C80-48A8-93B3-DA60D488E4B4}</ProjectGuid>
+    <TargetName>netilstests</TargetName>
+    <UndockedType>dll</UndockedType>
+    <ImportEbpf>true</ImportEbpf>
+    <ImportWnt>true</ImportWnt>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)test\common\lib\util\util.vcxproj">
+      <Project>{bdd99a80-0936-47b0-918d-04cf3b472fb0}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)test\functional\lib\xdptests.vcxproj">
+      <Project>{b7c007da-b437-4ca5-896e-5cb5a5006d01}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="tests.cpp" />
+  </ItemGroup>
+  <ItemDefinitionGroup>
+    <PreBuildEvent>
+      <Command>
+        tracewpp.exe -odir:$(IntDir) -scan:$(SolutionDir)test\functional\inc\fntrace.h $(ProjectDir)*.cpp -p:xdpfntest -cfgdir:"$(WindowsSdkDir)bin\$(TargetPlatformVersion)\WppConfig\Rev1"
+      </Command>
+    </PreBuildEvent>
+    <ClCompile>
+      <AdditionalIncludeDirectories>
+        $(SolutionDir)test\common\inc;
+        $(SolutionDir)test\functional\inc;
+        $(SolutionDir)test\functional\lib;
+        $(VCInstallDir)UnitTest\include;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+      <UseFullPaths>true</UseFullPaths>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>ntdll.lib;onecore.lib;iphlpapi.lib;advapi32.lib;$(OutDir)\cxplat\bin\$(UndockedPlatConfig)\cxplat.lib;netport.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(VCInstallDir)UnitTest\lib;$(SolutionDir)\artifacts\bin\$(Platform)_$(Configuration)\test\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(SolutionDir)src\xdp.targets" />
+  <Target Name="BuildCxPlat" BeforeTargets="PrepareForBuild">
+    <MSBuild Projects="$(SolutionDir)submodules\cxplat\src\lib\cxplat.user.vcxproj" Properties="UndockedOut=$(OutDir)cxplat\;UndockedSourceLink=false" />
+  </Target>
+</Project>

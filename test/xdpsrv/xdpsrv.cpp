@@ -12,10 +12,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <WinSock2.h>
-#include <ws2tcpip.h>
-#include <iphlpapi.h>
-#include "xdpsrv.h"
 #include "network_utils.h"
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
@@ -1925,9 +1921,10 @@ main(
     MY_THREAD* threads;
     UINT32 threadCount;
 
+    /*
     AdapterMeta adapterMeta;
     adapterMeta.getLocalByIP("10.2.1.114");
-
+    */
     ParseArgs(&threads, &threadCount, argc, argv);
 
     periodicStatsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
