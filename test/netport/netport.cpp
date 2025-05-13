@@ -97,66 +97,6 @@ PktStringToInetAddressA(
 }
 #endif
 
-
-VOID* CreateUdpPacket(AdapterMeta localAdapter, UINT16 srcPort, CHAR * dstETH, CHAR * dstIP, UINT16 dstPort, UINT32 PayloadLength){
-    ETHERNET_ADDRESS EthSrc, EthDst;
-    INET_ADDR IpSrc, IpDst;
-    UINT16 PortSrc, PortDst;
-    ADDRESS_FAMILY Af;
-    UCHAR* PayloadBuffer = NULL;
-    UCHAR* PacketBuffer = NULL;
-    UINT32 PacketLength;
-    const CHAR* Terminator;
-
-    if (RtlEthernetStringToAddressA(dstETH, &Terminator, (DL_EUI48*)&EthDst)) {
-        return NULL;
-    }
-
-    if (!PktStringToInetAddressA(&IpDst, &Af, dstIP)) {
-        return NULL;
-    }
-
-    PortSrc = htons(srcPort);
-    PortDst = htons(dstPort);
-
-    //if (IsUdp) {
-    PacketLength = UDP_HEADER_BACKFILL(Af) + PayloadLength;
-    __analysis_assume(PacketLength > UDP_HEADER_BACKFILL(Af));
-    /*
-    }
-    else {
-        PacketLength = TCP_HEADER_BACKFILL(Af) + PayloadLength;
-        __analysis_assume(PacketLength > TCP_HEADER_BACKFILL(Af));
-    }
-    */
-    PayloadBuffer = (UCHAR*)calloc(1, PayloadLength > 0 ? PayloadLength : 1);
-    if (PayloadBuffer == NULL) {
-        return NULL;
-    }
-
-    PacketBuffer = (UCHAR*)malloc(PacketLength);
-
-    if (PacketBuffer == NULL) {
-        return NULL;
-    }
-    else {
-        memset(PacketBuffer, 0, PacketLength);
-    }
-
-    if (!PktBuildUdpFrame(
-        PacketBuffer, &PacketLength, PayloadBuffer, PayloadLength, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
-        PortDst, PortSrc)) {
-		free(PayloadBuffer);
-		free(PacketBuffer);
-        return NULL;
-    }
-    else {
-		free(PayloadBuffer);
-		return PacketBuffer;
-
-    }
-}
-
 VOID* InitUdpPacket(/*BOOL IsUdp*/CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort, UINT32 PayloadLength, UINT32& PacketLength) {
     ETHERNET_ADDRESS EthSrc, EthDst;
     INET_ADDR IpSrc, IpDst;
@@ -240,9 +180,72 @@ VOID* InitUdpPacket(/*BOOL IsUdp*/CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHA
 
     return PacketBuffer;
 }
-        
+
+VOID* CreateUdpPacket(
+    ADDRESS_FAMILY Af,
+    ETHERNET_ADDRESS EthSrc,
+    INET_ADDR IpSrc, 
+    UINT16 srcPort, 
+    ETHERNET_ADDRESS EthDst,
+    INET_ADDR IpDst, 
+    UINT16 dstPort, 
+    UINT32 PayloadLength, 
+    UINT32& PacketLength
+) {
+    UINT16 PortSrc, PortDst;
+    UCHAR* PayloadBuffer = NULL;
+    UCHAR* PacketBuffer = NULL;
+    
+    PortSrc = htons(srcPort);
+    PortDst = htons(dstPort);
+
+    //if (IsUdp) {
+    PacketLength = UDP_HEADER_BACKFILL(Af) + PayloadLength;
+    __analysis_assume(PacketLength > UDP_HEADER_BACKFILL(Af));
+    /*
+    }
+    else {
+        PacketLength = TCP_HEADER_BACKFILL(Af) + PayloadLength;
+        __analysis_assume(PacketLength > TCP_HEADER_BACKFILL(Af));
+    }
+    */
+    PayloadBuffer = (UCHAR*)calloc(1, PayloadLength > 0 ? PayloadLength : 1);
+    if (PayloadBuffer == NULL) {
+        return NULL;
+    }
+
+    PacketBuffer = (UCHAR*)malloc(PacketLength);
+
+    if (PacketBuffer == NULL) {
+        return NULL;
+    }
+    else {
+        memset(PacketBuffer, 0, PacketLength);
+    }
+
+    //if (IsUdp) {
+    if (!PktBuildUdpFrame(
+        PacketBuffer, &PacketLength, PayloadBuffer, PayloadLength, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
+        PortDst, PortSrc)) {
+        free(PayloadBuffer);
+        free(PacketBuffer);
+    }
+
+    return PacketBuffer;
+}
+       
 VOID* AdapterMeta::GenMTUBuffer(const char* payload, UINT32 size) {
-    VOID* buffer=InitUdpPacket(verbSrcEthAddr, verbSrcIpAddr, srcPort, verbDstEthAddr, verbDstIpAddr, dstPort, size, size);
+    payloadSize = size;
+    VOID* buffer=CreateUdpPacket(
+		Af,
+        srcEthAddr, 
+        srcIpAddr, 
+        srcPort, 
+        dstEthAddr, 
+        dstIpAddr, 
+        dstPort, 
+        payloadSize, 
+        packetSize);
     return buffer;
 }
         
@@ -341,25 +344,48 @@ BOOL AdapterMeta::AssingLocal(const char* ipaddr, const char* ethaddr, UINT16 po
 
 	memset(verbSrcEthAddr, 0, sizeof(verbSrcEthAddr));
 	memcpy(verbSrcEthAddr, ethaddr, sizeof(verbSrcEthAddr));
-
-	srcPort = port;
+	
+    srcPort = port;
+    
+	if (identifyLocal() == FALSE) {
+		return FALSE;
+	}
     return TRUE;
 }
 
 BOOL AdapterMeta::SetTarget(const char* ipaddr, const char* ethaddr, UINT16 port) {
-    const CHAR* Terminator;
 	memcpy(verbDstIpAddr, ipaddr, sizeof(verbDstIpAddr));
 	memcpy(verbDstEthAddr, ethaddr, sizeof(verbDstEthAddr));
-
-    if (!PktStringToInetAddressA(&dstIpAddr, &Af, ipaddr)) {
-        return FALSE;
-    }
-
-    if (RtlEthernetStringToAddressA(ethaddr, &Terminator, (DL_EUI48*)&dstEthAddr)) {
-        return FALSE;
-    }
-
     dstPort = port;
+
+    if (!identifyTarget()) {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+        
+BOOL AdapterMeta::identifyLocal(void) {
+    const CHAR* Terminator;
+    if (!PktStringToInetAddressA(&srcIpAddr, &Af, verbSrcIpAddr)) {
+        return FALSE;
+    }
+
+    if (RtlEthernetStringToAddressA(verbSrcEthAddr, &Terminator, (DL_EUI48*)&srcEthAddr)) {
+        return FALSE;
+    }
+    return TRUE;
+}
+
+BOOL AdapterMeta::identifyTarget(void) {
+    const CHAR* Terminator;
+    if (!PktStringToInetAddressA(&dstIpAddr, &Af, verbDstIpAddr)) {
+        return FALSE;
+    }
+
+    if (RtlEthernetStringToAddressA(verbDstEthAddr, &Terminator, (DL_EUI48*)&dstEthAddr)) {
+        return FALSE;
+    }
     return TRUE;
 }
         

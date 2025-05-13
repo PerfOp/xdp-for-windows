@@ -277,6 +277,8 @@ extern "C" {
         ETHERNET_ADDRESS dstEthAddr;
         INET_ADDR srcIpAddr;
         ETHERNET_ADDRESS srcEthAddr;
+        UINT32 packetSize;
+        UINT32 payloadSize;
         
         UINT16 dstPort;
    
@@ -300,6 +302,8 @@ extern "C" {
 		
         VOID* GenMTUBuffer(const char* payload, UINT32 size);
 
+        BOOL identifyLocal(void);
+        BOOL identifyTarget(void);
 		BOOL findAdapterByIP(const char* ipaddr, const UINT16 port);
         BOOL selLocalPort(const UINT16 port);
         BOOL debug_output();
