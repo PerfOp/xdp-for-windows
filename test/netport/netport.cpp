@@ -15,50 +15,45 @@
 #pragma warning(disable: 6001)
 
 // TODO: This is an example of a library function
-void fnnetport()
+UCHAR
+HexToBin(
+	_In_ CHAR Char
+)
 {
+	Char = (CHAR)tolower(Char);
+
+	if (Char >= '0' && Char <= '9') {
+		return (UCHAR)(Char - '0');
+	}
+
+	if (Char >= 'a' && Char <= 'f') {
+		return (UCHAR)(10 + Char - 'a');
+	}
+
+	//ASSERT_FRE(!"Invalid hex");
+	return 0;
 }
 
-UCHAR
-        HexToBin(
-            _In_ CHAR Char
-        )
-    {
-        Char = (CHAR)tolower(Char);
+VOID
+GetDescriptorPattern(
+	_Inout_ UCHAR* Buffer,
+	_In_ UINT32 BufferSize,
+	_In_opt_z_ const CHAR* Hex
+)
+{
+	while (Hex != NULL && *Hex != '\0') {
+		//ASSERT_FRE(BufferSize > 0);
 
-        if (Char >= '0' && Char <= '9') {
-            return (UCHAR)(Char - '0');
-        }
+		*Buffer = HexToBin(*Hex++);
+		*Buffer <<= 4;
 
-        if (Char >= 'a' && Char <= 'f') {
-            return (UCHAR)(10 + Char - 'a');
-        }
+		//ASSERT_FRE(*Hex != '\0');
+		*Buffer |= HexToBin(*Hex++);
 
-        //ASSERT_FRE(!"Invalid hex");
-        return 0;
-    }
-
-    VOID
-        GetDescriptorPattern(
-            _Inout_ UCHAR* Buffer,
-            _In_ UINT32 BufferSize,
-            _In_opt_z_ const CHAR* Hex
-        )
-    {
-        while (Hex != NULL && *Hex != '\0') {
-            //ASSERT_FRE(BufferSize > 0);
-
-            *Buffer = HexToBin(*Hex++);
-            *Buffer <<= 4;
-
-            //ASSERT_FRE(*Hex != '\0');
-            *Buffer |= HexToBin(*Hex++);
-
-            Buffer++;
-            BufferSize--;
-        }
-    }
-
+		Buffer++;
+		BufferSize--;
+	}
+}
 
 #ifndef _KERNEL_MODE
 inline
@@ -167,7 +162,7 @@ VOID* InitUdpPacket(/*BOOL IsUdp*/CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHA
 
         else {
             if (!PktBuildTcpFrame(
-                PacketBuffer, &PacketLength, PayloadBuffer, PayloadLength,
+                PacketBuffer, &packetLength, PayloadBuffer, PayloadLength,
                 NULL, 0, 1, 2, TH_SYN | TH_ACK, 4, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
                 PortDst, PortSrc)) {
                 Usage("Failed to build the TCP packet");
@@ -181,27 +176,27 @@ VOID* InitUdpPacket(/*BOOL IsUdp*/CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHA
     return PacketBuffer;
 }
 
-VOID* CreateUdpPacket(
+BOOL CreateUdpPacket(
     ADDRESS_FAMILY Af,
     ETHERNET_ADDRESS EthSrc,
-    INET_ADDR IpSrc, 
-    UINT16 srcPort, 
+    INET_ADDR IpSrc,
+    UINT16 srcPort,
     ETHERNET_ADDRESS EthDst,
-    INET_ADDR IpDst, 
-    UINT16 dstPort, 
-    UINT32 PayloadLength, 
-    UINT32& PacketLength
+    INET_ADDR IpDst,
+    UINT16 dstPort,
+    const UCHAR* payloadBuffer,
+    UINT32 payloadLength,
+    UCHAR* mtuBuffer,
+    UINT32& packetLength
 ) {
     UINT16 PortSrc, PortDst;
-    UCHAR* PayloadBuffer = NULL;
-    UCHAR* PacketBuffer = NULL;
     
     PortSrc = htons(srcPort);
     PortDst = htons(dstPort);
 
     //if (IsUdp) {
-    PacketLength = UDP_HEADER_BACKFILL(Af) + PayloadLength;
-    __analysis_assume(PacketLength > UDP_HEADER_BACKFILL(Af));
+    packetLength = UDP_HEADER_BACKFILL(Af) + payloadLength;
+    __analysis_assume(packetLength > UDP_HEADER_BACKFILL(Af));
     /*
     }
     else {
@@ -209,44 +204,31 @@ VOID* CreateUdpPacket(
         __analysis_assume(PacketLength > TCP_HEADER_BACKFILL(Af));
     }
     */
-    PayloadBuffer = (UCHAR*)calloc(1, PayloadLength > 0 ? PayloadLength : 1);
-    if (PayloadBuffer == NULL) {
-        return NULL;
-    }
 
-    PacketBuffer = (UCHAR*)malloc(PacketLength);
-
-    if (PacketBuffer == NULL) {
-        return NULL;
-    }
-    else {
-        memset(PacketBuffer, 0, PacketLength);
-    }
-
-    //if (IsUdp) {
+    //if (IsUdp) 
     if (!PktBuildUdpFrame(
-        PacketBuffer, &PacketLength, PayloadBuffer, PayloadLength, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
+        //PacketBuffer, &PacketLength, PayloadBuffer, PayloadLength, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
+        mtuBuffer, &packetLength, payloadBuffer, payloadLength, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
         PortDst, PortSrc)) {
-        free(PayloadBuffer);
-        free(PacketBuffer);
+        return FALSE;
     }
 
-    return PacketBuffer;
+    return TRUE;
 }
        
-VOID* AdapterMeta::GenMTUBuffer(const char* payload, UINT32 size) {
-    payloadSize = size;
-    VOID* buffer=CreateUdpPacket(
+BOOL AdapterMeta::FillMTUBufferWithPayload(const UCHAR* payload, UINT32 size, UINT32& packetsize, BYTE* mtuBuffer) {
+    return CreateUdpPacket(
 		Af,
         srcEthAddr, 
         srcIpAddr, 
         srcPort, 
         dstEthAddr, 
         dstIpAddr, 
-        dstPort, 
-        payloadSize, 
-        packetSize);
-    return buffer;
+        dstPort,
+        payload,
+        size, 
+        mtuBuffer,
+        packetsize);
 }
         
 BOOL AdapterMeta::fillAdapterInfo(PIP_ADAPTER_INFO padapterinfo) {

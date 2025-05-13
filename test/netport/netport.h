@@ -265,7 +265,8 @@ extern "C" {
             _In_opt_z_ const CHAR* Hex
         );
 
-    typedef struct SAdapterMeta {
+class AdapterMeta {
+    private:
         UINT32 ifindex;
         UINT32 mtu;
         UINT32 group;
@@ -278,11 +279,7 @@ extern "C" {
         INET_ADDR srcIpAddr;
         ETHERNET_ADDRESS srcEthAddr;
         UINT32 packetSize;
-        UINT32 payloadSize;
-        
-        UINT16 dstPort;
-   
-        //Local Value
+
         //BYTE verbDstEthAddr[MAX_ADAPTER_ADDRESS_LENGTH];
         char verbDstEthAddr[kMacAddrLength];
         char verbDstIpAddr[4 * 4];
@@ -290,27 +287,34 @@ extern "C" {
         //BYTE verbSrcEthAddr[MAX_ADAPTER_ADDRESS_LENGTH];
         char verbSrcEthAddr[kMacAddrLength];
         char verbSrcIpAddr[4 * 4];
-        UINT16 srcPort;
 
+        UINT16 dstPort;
+        UINT16 srcPort;
 #ifdef WIN32
         IP_ADAPTER_INFO adapterInfo;
+    public:
         BOOL fillAdapterInfo(PIP_ADAPTER_INFO adapterinfo);
 #endif
-        BOOL InitLocalByIP(const char* ip, const UINT16 port=4321);
+    public:
+		// Apis for set src and dst ip and mac
+        BOOL InitLocalByIP(const char* ip, const UINT16 port = 4321);
         BOOL SetTarget(const char* ipaddr, const char* ethaddr, UINT16 port);
-		BOOL AssingLocal(const char* ipaddr, const char* ethaddr, UINT16 port) ;
-		
-        VOID* GenMTUBuffer(const char* payload, UINT32 size);
+        BOOL AssingLocal(const char* ipaddr, const char* ethaddr, UINT16 port);
 
+        BOOL FillMTUBufferWithPayload(const UCHAR* payload, UINT32 payloadsize, UINT32& packetsize, BYTE* mtuBuffer);
+
+    private:
+		// Apis for transfering the string ip/mac to inet_addr and ETHERNET_ADDRESS for generating the udp packet
         BOOL identifyLocal(void);
         BOOL identifyTarget(void);
-		BOOL findAdapterByIP(const char* ipaddr, const UINT16 port);
+		// Support APIs for call the windows platform APIs on adapters
+        BOOL findAdapterByIP(const char* ipaddr, const UINT16 port);
         BOOL selLocalPort(const UINT16 port);
+		// Support APIs for output information
         BOOL debug_output();
-    } AdapterMeta;
+};
 
-	VOID* CreateUdpPacket(AdapterMeta localAdapter, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort, UINT32 payloadLength) ;
-	VOID* InitUdpPacket(/*BOOL IsUdp*/CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort, UINT32 PayloadLength, UINT32& bufferLength) ;
+VOID* InitUdpPacket(CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort, UINT32 PayloadLength, UINT32& bufferLength) ;
 
 
 #ifdef __cplusplus
