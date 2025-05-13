@@ -14,6 +14,20 @@
 #pragma warning(push)
 #pragma warning(disable: 6001)
 
+
+void bytes_to_hex_string(const uint8_t* bytes, size_t length, char* out_buffer, size_t buffer_size) {
+    size_t offset = 0;
+    for (size_t i = 0; i < length && offset < buffer_size - 3; ++i) {
+        int written = snprintf(out_buffer + offset, buffer_size - offset, "%02X", bytes[i]);
+        if (written < 0 || written >= buffer_size - offset) {
+            break;
+        }
+        offset += written;
+    }
+    out_buffer[offset] = '\0';
+}
+
+
 // TODO: This is an example of a library function
 UCHAR
 HexToBin(

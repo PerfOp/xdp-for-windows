@@ -10,9 +10,9 @@
 #include <Windows.h>
 #include <inaddr.h>
 #include <in6addr.h>
-#include <winsock2.h>
 #include <netiodef.h>
 #include <iphlpapi.h>
+#include <string>
 
 #if defined(_KERNEL_MODE) && !defined(htons)
 #define __pkthlp_htons
@@ -315,6 +315,8 @@ class AdapterMeta {
 };
 
 VOID* InitUdpPacket(CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort, UINT32 PayloadLength, UINT32& bufferLength) ;
+
+void bytes_to_hex_string(const uint8_t* bytes, size_t length, char* out_buffer, size_t buffer_size);
 
 
 #ifdef __cplusplus

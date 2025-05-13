@@ -160,6 +160,10 @@ namespace UnitTestExample
                     Assert::AreEqual(loadBuffer[i], MtuBuffer[i]);
 				}
             }
+            char output[kPacketSize * 2 + 1] = { 0 };
+            bytes_to_hex_string(MtuBuffer, kPacketSize, output, kPacketSize*2+1);
+            Logger::WriteMessage(output);
+
 		}
     };
 }
