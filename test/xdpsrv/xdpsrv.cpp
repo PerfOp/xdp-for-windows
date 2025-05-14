@@ -94,6 +94,9 @@ CHAR* HELP =
 "                      Default: off\n"
 "   -tx_inspect        Inspect RX and FWD frames from the local TX path\n"
 "                      Default: off\n"
+"   -srcip             Source: host ip \n"
+"   -dstip             Destination: host ip \n"
+"   -dstmac            Destination: host mac, Please use -dstip to assign destination IP before -dstmac \n"
 "   -tx_pattern        Pattern for the leading bytes of TX, in hexadecimal.\n"
 "                      The pktcmd.exe tool outputs hexadecimal headers. Any\n"
 "                      trailing bytes in the XSK buffer are set to zero\n"
@@ -175,6 +178,8 @@ typedef struct {
     UINT32 latSamplesCount;
     UINT32 latIndex;
     XSK_POLL_MODE pollMode;
+
+    AdapterMeta localAdapter;
 
     struct {
         BOOLEAN periodicStats : 1;
@@ -1455,6 +1460,7 @@ ParseQueueArgs(
     Queue->flags.optimizePoking = TRUE;
     Queue->txiosize = DEFAULT_TX_IO_SIZE;
     Queue->latSamplesCount = DEFAULT_LAT_COUNT;
+    INT dstipidx = -1;
 
     for (INT i = 0; i < argc; i++) {
         if (!_stricmp(argv[i], "-id")) {
@@ -1546,6 +1552,30 @@ ParseQueueArgs(
         }
         else if (!strcmp(argv[i], "-tx_inspect")) {
             Queue->flags.txInspect = TRUE;
+        }
+        else if (!strcmp(argv[i], "-srcip")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            Queue->localAdapter.InitLocalByIP(argv[i]);
+        }
+        else if (!strcmp(argv[i], "-dstip")) {
+            if (++i >= argc) {
+                Usage();
+            }
+			dstipidx = i;
+			Queue->localAdapter.SetTarget(argv[i]);
+        }
+        else if (!strcmp(argv[i], "-dstmac")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            if (dstipidx > 0) {
+                Queue->localAdapter.SetTarget(argv[dstipidx], argv[i], 1234);
+            }
+            else {
+                Usage();
+            }
         }
         else if (!strcmp(argv[i], "-tx_pattern")) {
             if (++i >= argc) {

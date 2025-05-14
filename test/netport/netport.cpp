@@ -280,10 +280,7 @@ BOOL AdapterMeta::findAdapterByIP(const char* targetIP, const UINT16 srcport) {
             if (strcmp(targetIP, pIpAddrString->IpAddress.String) == 0) {
                 fillAdapterInfo(cur);
 				srcPort = srcport;
-                //memcpy(pAdapterInfo, cur, sizeof(IP_ADAPTER_INFO));
 
-                //printf("ip: %s\n", pIpAddrString->IpAddress.String);
-                //printf("mask: %s\n", pIpAddrString->IpMask.String);
                 printf("ip: %s\n", verbSrcIpAddr);
                 printf("mask: %s\n", pIpAddrString->IpMask.String);
                 printf("mac:%s\n", verbSrcEthAddr);
@@ -351,7 +348,12 @@ BOOL AdapterMeta::AssingLocal(const char* ipaddr, const char* ethaddr, UINT16 po
 
 BOOL AdapterMeta::SetTarget(const char* ipaddr, const char* ethaddr, UINT16 port) {
 	memcpy(verbDstIpAddr, ipaddr, sizeof(verbDstIpAddr));
-	memcpy(verbDstEthAddr, ethaddr, sizeof(verbDstEthAddr));
+    if (ethaddr != NULL) {
+        memcpy(verbDstEthAddr, ethaddr, sizeof(verbDstEthAddr));
+    }
+    else {
+        memcpy(verbDstEthAddr, "12-34-56-78-9A-BC", sizeof(verbDstEthAddr));
+    }
     dstPort = port;
 
     if (!identifyTarget()) {

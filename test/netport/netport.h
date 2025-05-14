@@ -285,7 +285,7 @@ class AdapterMeta {
         char verbDstIpAddr[4 * 4];
 
         //BYTE verbSrcEthAddr[MAX_ADAPTER_ADDRESS_LENGTH];
-        char verbSrcEthAddr[kMacAddrLength];
+        char verbSrcEthAddr[kMacAddrLength*2];
         char verbSrcIpAddr[4 * 4];
 
         UINT16 dstPort;
@@ -298,7 +298,7 @@ class AdapterMeta {
     public:
 		// Apis for set src and dst ip and mac
         BOOL InitLocalByIP(const char* ip, const UINT16 port = 4321);
-        BOOL SetTarget(const char* ipaddr, const char* ethaddr, UINT16 port);
+        BOOL SetTarget(const char* ipaddr, const char* ethaddr=NULL, UINT16 port=1234);
         BOOL AssingLocal(const char* ipaddr, const char* ethaddr, UINT16 port);
 
         BOOL FillMTUBufferWithPayload(const UCHAR* payload, UINT32 payloadsize, UINT32& packetsize, BYTE* mtuBuffer);
