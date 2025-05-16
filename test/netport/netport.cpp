@@ -310,13 +310,17 @@ BOOL AdapterMeta::findAdapterByIP(const char* targetIP, const UINT16 srcport) {
 
 BOOL AdapterMeta::InitLocalByIP(const char* ipaddr, const UINT16 port) {
     if (!findAdapterByIP(ipaddr, port)) {
-        printf("inet_pton failed\n");
+		printf("Cannot locate the adapter by ip\n");
         return FALSE;
     }
+    if (identifyLocal() == FALSE) {
+        return FALSE;
+    }
+    /*
     if (inet_pton(AF_INET, adapterInfo.IpAddressList.IpAddress.String, &dstIpAddr.Ipv4) != 1) {
         printf("inet_pton failed\n");
         return FALSE;
-    }
+    }*/
     //memcpy(&verbSrcEthAddr, adapterInfo.Address, 6);
     return TRUE;
 }

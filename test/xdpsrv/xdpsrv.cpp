@@ -41,6 +41,8 @@
 #define DEFAULT_LAT_COUNT 10000000
 #define DEFAULT_YIELD_COUNT 0
 
+#define DEFAULT_PAYLOAD_SIZE 64
+
 CHAR* HELP =
 "xskbench.exe <rx|tx|fwd|lat> -i <ifindex> [OPTIONS] <-t THREAD_PARAMS> [-t THREAD_PARAMS...] \n"
 "\n"
@@ -74,6 +76,8 @@ CHAR* HELP =
 "                      Default: " STR_OF(DEFAULT_UMEM_HEADROOM) "\n"
 "   -txio <txiosize>   The size (in bytes) of each IO in tx mode\n"
 "                      Default: " STR_OF(DEFAULT_TX_IO_SIZE) "\n"
+"   -payloadsize <payloadsize>   The size (in bytes) of payload.\n"
+"                      Default: " STR_OF(DEFAULT_PAYLOAD_SIZE) "\n"
 "   -b <iobatchsize>   The number of buffers to submit for IO at once\n"
 "                      Default: " STR_OF(DEFAULT_IO_BATCH) "\n"
 "   -ignore_needpoke   Ignore the NEED_POKE optimization mechanism\n"
@@ -178,6 +182,8 @@ typedef struct {
     UINT32 latSamplesCount;
     UINT32 latIndex;
     XSK_POLL_MODE pollMode;
+    
+    ULONG payloadsize;
 
     AdapterMeta localAdapter;
 
@@ -206,7 +212,8 @@ typedef struct {
     XSK_RING txRing;
     XSK_RING fillRing;
     XSK_RING compRing;
-    XSK_RING freeRing;
+    XSK_RING freeRxRing;
+    XSK_RING freeTxRing;
     XSK_UMEM_REG umemReg;
 } MY_QUEUE;
 
@@ -556,34 +563,72 @@ SetupSock(
 		(SFreeRingLayout*)calloc(1, sizeof(*FreeRingLayout) + numDescriptors * sizeof(*FreeRingLayout->Descriptors));
     ASSERT_FRE(FreeRingLayout != NULL);
 
-    //XSK_RING_INFO freeRingInfo = { 0 };
-    XSK_RING_INFO freeRingInfo;
-	memset(&freeRingInfo, 0, sizeof(freeRingInfo));
+    //XSK_RING_INFO freeRxRingInfo = { 0 };
+    XSK_RING_INFO freeRxRingInfo;
+	memset(&freeRxRingInfo, 0, sizeof(freeRxRingInfo));
 
-    freeRingInfo.Ring = (BYTE*)FreeRingLayout;
-    freeRingInfo.ProducerIndexOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Producer);
-    freeRingInfo.ConsumerIndexOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Consumer);
-    freeRingInfo.FlagsOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Flags);
-    freeRingInfo.DescriptorsOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Descriptors[0]);
-    freeRingInfo.Size = numDescriptors;
-    freeRingInfo.ElementStride = sizeof(*FreeRingLayout->Descriptors);
-    XskRingInitialize(&Queue->freeRing, &freeRingInfo);
-    PrintRing("free", freeRingInfo);
+    freeRxRingInfo.Ring = (BYTE*)FreeRingLayout;
+    freeRxRingInfo.ProducerIndexOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Producer);
+    freeRxRingInfo.ConsumerIndexOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Consumer);
+    freeRxRingInfo.FlagsOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Flags);
+    freeRxRingInfo.DescriptorsOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Descriptors[0]);
+    freeRxRingInfo.Size = numDescriptors;
+    freeRxRingInfo.ElementStride = sizeof(*FreeRingLayout->Descriptors);
+    XskRingInitialize(&Queue->freeRxRing, &freeRxRingInfo);
+    PrintRing("free", freeRxRingInfo);
 
+	//const UINT32 kPacketSize = 64;
+    UCHAR* payload = new UCHAR[Queue->payloadsize];
+    memset(payload, 0, Queue->payloadsize);
+    UINT32 genPacketSize;
+    BYTE MtuBuffer[2048];
+	memset(MtuBuffer, 0, sizeof(MtuBuffer));
+    /*
+    char refBuffer[] = "123456789abc7c1e523ef5d808004500005c000000000111a2b00a0201720a02016c10e104d20048d2c900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\0";
+    UINT32 refSize = (UINT32)strlen(refBuffer);
+    BYTE* decodedMtu = new BYTE[refSize / 2];
+    memset((VOID*)decodedMtu, 0, refSize/2);
+    // Assert::AreEqual(kPacketSize, refSize / 2);
+	GetDescriptorPattern(decodedMtu, refSize, refBuffer);
+
+    */
+    /*
+	AdapterMeta localAdapter;
+	localAdapter.SetTarget("10.2.1.108", "12-34-56-78-9a-bc", 1234);
+	localAdapter.AssingLocal("10.2.1.114", "7C-1E-52-3E-F5-D8", 4321);
+    */
+	Queue->localAdapter.FillMTUBufferWithPayload(payload, Queue->payloadsize, genPacketSize, MtuBuffer);
+    /*
+	for (UINT32 i = 0; i < genPacketSize; i++) {
+		if (MtuBuffer[i] != decodedMtu[i]) {
+			printf("Mismatch at index %d: expected %02x, got %02x\n", i, decodedMtu[i], MtuBuffer[i]);
+		}
+	}
+    */
+	
+	//Queue->localAdapter.FillMTUBufferWithPayload(payload, Queue->txPatternLength, packetSize, MtuBuffer);
+    
+    //delete[] decodedMtu;
+    delete[] payload;
+    
     UINT64 desc = 0;
     for (UINT32 i = 0; i < numDescriptors; i++) {
-        UINT64* Descriptor = (UINT64*)XskRingGetElement(&Queue->freeRing, i);
+        UINT64* Descriptor = (UINT64*)XskRingGetElement(&Queue->freeRxRing, i);
         *Descriptor = desc;
 
         if (mode == ModeTx || mode == ModeLat) {
             memcpy(
-                (UCHAR*)Queue->umemReg.Address + desc + Queue->umemheadroom, Queue->txPattern,
-                Queue->txPatternLength);
+                (UCHAR*)Queue->umemReg.Address + desc + Queue->umemheadroom, 
+                //Queue->txPattern,
+                MtuBuffer,
+                //Queue->txPatternLength);
+                genPacketSize);
         }
 
         desc += Queue->umemchunksize;
     }
-    XskRingProducerSubmit(&Queue->freeRing, numDescriptors);
+
+    XskRingProducerSubmit(&Queue->freeRxRing, numDescriptors);
 
     AttachXdpProgram(Queue);
 }
@@ -844,7 +889,7 @@ WriteFillPackets(
 )
 {
     for (UINT32 i = 0; i < Count; i++) {
-        UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, FreeConsumerIndex++);
+        UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRxRing, FreeConsumerIndex++);
         UINT64* fillDesc = (UINT64*)XskRingGetElement(&Queue->fillRing, FillProducerIndex++);
 
         *fillDesc = *freeDesc;
@@ -862,7 +907,7 @@ ReadRxPackets(
 {
     for (UINT32 i = 0; i < Count; i++) {
         XSK_BUFFER_DESCRIPTOR* rxDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&Queue->rxRing, RxConsumerIndex++);
-        UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, FreeProducerIndex++);
+        UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRxRing, FreeProducerIndex++);
 
         *freeDesc = rxDesc->Address.BaseAddress;
         printf_verbose("Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
@@ -890,11 +935,11 @@ ProcessRx(
 
     available =
         RingPairReserve(
-            &Queue->rxRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
+            &Queue->rxRing, &consumerIndex, &Queue->freeRxRing, &producerIndex, Queue->iobatchsize);
     if (available > 0) {
         ReadRxPackets(Queue, consumerIndex, producerIndex, available);
         XskRingConsumerRelease(&Queue->rxRing, available);
-        XskRingProducerSubmit(&Queue->freeRing, available);
+        XskRingProducerSubmit(&Queue->freeRxRing, available);
 
         processed += available;
         Queue->packetCount += available;
@@ -902,10 +947,10 @@ ProcessRx(
 
     available =
         RingPairReserve(
-            &Queue->freeRing, &consumerIndex, &Queue->fillRing, &producerIndex, Queue->iobatchsize);
+            &Queue->freeRxRing, &consumerIndex, &Queue->fillRing, &producerIndex, Queue->iobatchsize);
     if (available > 0) {
         WriteFillPackets(Queue, consumerIndex, producerIndex, available);
-        XskRingConsumerRelease(&Queue->freeRing, available);
+        XskRingConsumerRelease(&Queue->freeRxRing, available);
         XskRingProducerSubmit(&Queue->fillRing, available);
 
         processed += available;
@@ -914,7 +959,7 @@ ProcessRx(
 
     if (Wait &&
         XskRingConsumerReserve(&Queue->rxRing, 1, &consumerIndex) == 0 &&
-        XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
+        XskRingConsumerReserve(&Queue->freeRxRing, 1, &consumerIndex) == 0) {
         notifyFlags |= XSK_NOTIFY_FLAG_WAIT_RX;
     }
 
@@ -972,7 +1017,7 @@ WriteTxPackets(
 )
 {
     for (UINT32 i = 0; i < Count; i++) {
-        UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, FreeConsumerIndex++);
+        UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRxRing, FreeConsumerIndex++);
         XSK_BUFFER_DESCRIPTOR* txDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&Queue->txRing, TxProducerIndex++);
 
         txDesc->Address.BaseAddress = *freeDesc;
@@ -997,7 +1042,7 @@ ReadCompletionPackets(
 {
     for (UINT32 i = 0; i < Count; i++) {
         UINT64* compDesc = (UINT64*)XskRingGetElement(&Queue->compRing, CompConsumerIndex++);
-        UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, FreeProducerIndex++);
+        UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRxRing, FreeProducerIndex++);
 
         *freeDesc = *compDesc;
         printf_verbose("Consuming COMP entry {address:%llu}\n", *compDesc);
@@ -1018,11 +1063,11 @@ ProcessTx(
 
     available =
         RingPairReserve(
-            &Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
+            &Queue->compRing, &consumerIndex, &Queue->freeRxRing, &producerIndex, Queue->iobatchsize);
     if (available > 0) {
         ReadCompletionPackets(Queue, consumerIndex, producerIndex, available);
         XskRingConsumerRelease(&Queue->compRing, available);
-        XskRingProducerSubmit(&Queue->freeRing, available);
+        XskRingProducerSubmit(&Queue->freeRxRing, available);
 
         processed += available;
         Queue->packetCount += available;
@@ -1035,10 +1080,10 @@ ProcessTx(
 
     available =
         RingPairReserve(
-            &Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, Queue->iobatchsize);
+            &Queue->freeRxRing, &consumerIndex, &Queue->txRing, &producerIndex, Queue->iobatchsize);
     if (available > 0) {
         WriteTxPackets(Queue, consumerIndex, producerIndex, available);
-        XskRingConsumerRelease(&Queue->freeRing, available);
+        XskRingConsumerRelease(&Queue->freeRxRing, available);
         XskRingProducerSubmit(&Queue->txRing, available);
 
         processed += available;
@@ -1047,7 +1092,7 @@ ProcessTx(
 
     if (Wait &&
         XskRingConsumerReserve(&Queue->compRing, 1, &consumerIndex) == 0 &&
-        XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
+        XskRingConsumerReserve(&Queue->freeRxRing, 1, &consumerIndex) == 0) {
         notifyFlags |= XSK_NOTIFY_FLAG_WAIT_TX;
     }
 
@@ -1155,11 +1200,11 @@ ProcessFwd(
     //
     available =
         RingPairReserve(
-            &Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
+            &Queue->compRing, &consumerIndex, &Queue->freeRxRing, &producerIndex, Queue->iobatchsize);
     if (available > 0) {
         for (UINT32 i = 0; i < available; i++) {
             UINT64* compDesc = (UINT64*)XskRingGetElement(&Queue->compRing, consumerIndex++);
-            UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, producerIndex++);
+            UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRxRing, producerIndex++);
 
             *freeDesc = *compDesc;
 
@@ -1167,7 +1212,7 @@ ProcessFwd(
         }
 
         XskRingConsumerRelease(&Queue->compRing, available);
-        XskRingProducerSubmit(&Queue->freeRing, available);
+        XskRingProducerSubmit(&Queue->freeRxRing, available);
 
         processed += available;
         Queue->packetCount += available;
@@ -1183,10 +1228,10 @@ ProcessFwd(
     //
     available =
         RingPairReserve(
-            &Queue->freeRing, &consumerIndex, &Queue->fillRing, &producerIndex, Queue->iobatchsize);
+            &Queue->freeRxRing, &consumerIndex, &Queue->fillRing, &producerIndex, Queue->iobatchsize);
     if (available > 0) {
         for (UINT32 i = 0; i < available; i++) {
-            UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, consumerIndex++);
+            UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRxRing, consumerIndex++);
             UINT64* fillDesc = (UINT64*)XskRingGetElement(&Queue->fillRing, producerIndex++);
 
             *fillDesc = *freeDesc;
@@ -1194,7 +1239,7 @@ ProcessFwd(
             printf_verbose("Producing FILL entry {address:%llu}\n", *freeDesc);
         }
 
-        XskRingConsumerRelease(&Queue->freeRing, available);
+        XskRingConsumerRelease(&Queue->freeRxRing, available);
         XskRingProducerSubmit(&Queue->fillRing, available);
 
         processed += available;
@@ -1204,7 +1249,7 @@ ProcessFwd(
     if (Wait &&
         XskRingConsumerReserve(&Queue->rxRing, 1, &consumerIndex) == 0 &&
         XskRingConsumerReserve(&Queue->compRing, 1, &consumerIndex) == 0 &&
-        XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
+        XskRingConsumerReserve(&Queue->freeRxRing, 1, &consumerIndex) == 0) {
         notifyFlags |= (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX);
     }
 
@@ -1316,11 +1361,11 @@ ProcessLat(
     //
     available =
         RingPairReserve(
-            &Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
+            &Queue->compRing, &consumerIndex, &Queue->freeRxRing, &producerIndex, Queue->iobatchsize);
     if (available > 0) {
         ReadCompletionPackets(Queue, consumerIndex, producerIndex, available);
         XskRingConsumerRelease(&Queue->compRing, available);
-        XskRingProducerSubmit(&Queue->freeRing, available);
+        XskRingProducerSubmit(&Queue->freeRxRing, available);
         processed += available;
 
         if (XskRingProducerReserve(&Queue->txRing, MAXUINT32, &producerIndex) !=
@@ -1335,13 +1380,13 @@ ProcessLat(
     //
     available =
         RingPairReserve(
-            &Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, Queue->iobatchsize);
+            &Queue->freeRxRing, &consumerIndex, &Queue->txRing, &producerIndex, Queue->iobatchsize);
     if (available > 0) {
         LARGE_INTEGER NowQpc;
         VERIFY(QueryPerformanceCounter(&NowQpc));
 
         for (UINT32 i = 0; i < available; i++) {
-            UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, consumerIndex++);
+            UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRxRing, consumerIndex++);
             XSK_BUFFER_DESCRIPTOR* txDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&Queue->txRing, producerIndex++);
 
             INT64 UNALIGNED* Timestamp = (INT64 UNALIGNED*)
@@ -1359,7 +1404,7 @@ ProcessLat(
                 txDesc->Address.BaseAddress, txDesc->Address.Offset, txDesc->Length);
         }
 
-        XskRingConsumerRelease(&Queue->freeRing, available);
+        XskRingConsumerRelease(&Queue->freeRxRing, available);
         XskRingProducerSubmit(&Queue->txRing, available);
 
         processed += available;
@@ -1369,7 +1414,7 @@ ProcessLat(
     if (Wait &&
         XskRingConsumerReserve(&Queue->rxRing, 1, &consumerIndex) == 0 &&
         XskRingConsumerReserve(&Queue->compRing, 1, &consumerIndex) == 0 &&
-        XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
+        XskRingConsumerReserve(&Queue->freeRxRing, 1, &consumerIndex) == 0) {
         notifyFlags |= (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX);
     }
 
@@ -1409,10 +1454,10 @@ DoLatMode(
         //
         available = XskRingProducerReserve(&queue->fillRing, queue->ringsize, &producerIndex);
         ASSERT_FRE(available == queue->ringsize);
-        available = XskRingConsumerReserve(&queue->freeRing, queue->ringsize, &consumerIndex);
+        available = XskRingConsumerReserve(&queue->freeRxRing, queue->ringsize, &consumerIndex);
         ASSERT_FRE(available == queue->ringsize);
         WriteFillPackets(queue, consumerIndex, producerIndex, available);
-        XskRingConsumerRelease(&queue->freeRing, available);
+        XskRingConsumerRelease(&queue->freeRxRing, available);
         XskRingProducerSubmit(&queue->fillRing, available);
     }
 
@@ -1460,6 +1505,9 @@ ParseQueueArgs(
     Queue->flags.optimizePoking = TRUE;
     Queue->txiosize = DEFAULT_TX_IO_SIZE;
     Queue->latSamplesCount = DEFAULT_LAT_COUNT;
+
+    Queue->payloadsize = DEFAULT_PAYLOAD_SIZE;
+    
     INT dstipidx = -1;
 
     for (INT i = 0; i < argc; i++) {
@@ -1486,6 +1534,12 @@ ParseQueueArgs(
                 Usage();
             }
             Queue->txiosize = atoi(argv[i]);
+        }
+        else if (!_stricmp(argv[i], "-payloadsize")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            Queue->payloadsize = atoi(argv[i]);
         }
         else if (!strcmp(argv[i], "-u")) {
             if (++i >= argc) {
@@ -1912,19 +1966,9 @@ main(
     MY_THREAD* threads;
     UINT32 threadCount;
 
-    /*
-    AdapterMeta adapterMeta;
-    adapterMeta.getLocalByIP("10.2.1.114");
-    CHAR* udpBuffer = (CHAR*) CreateUdpPacket(adapterMeta, 4321, "12-34-56-78-9A-BC", "10.2.1.108", 1234, 64);
-	if (udpBuffer != NULL) {
-		free(udpBuffer);
-        udpBuffer = NULL;
-	}
-    */
-
     ParseArgs(&threads, &threadCount, argc, argv);
 
-    periodicStatsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	periodicStatsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
     ASSERT_FRE(periodicStatsEvent != NULL);
 
     ASSERT_FRE(SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE));
