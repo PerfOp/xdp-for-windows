@@ -174,7 +174,7 @@ private:
 		UINT32 Count
 	);
     BOOL initSharedMemory();
-    BOOL initRing();
+    BOOL initFreeRing();
     BOOL initDataPath(INT ifindex) ;
     BOOL attachXdpProgram(INT ifindex);
 public:

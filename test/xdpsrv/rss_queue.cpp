@@ -248,7 +248,7 @@ BOOL RssQueue::attachXdpProgram(INT ifindex) {
 	return TRUE;
 }
 
-BOOL RssQueue::initRing() {
+BOOL RssQueue::initFreeRing() {
     //
     // Free ring starts off with all UMEM descriptors.
     //
@@ -1053,7 +1053,7 @@ void RssQueue::SetupSock(INT IfIndex){
 	
 	this->initDataPath(IfIndex);
 
-	this->initRing();
+	this->initFreeRing();
 
     this->attachXdpProgram(IfIndex);
 }
