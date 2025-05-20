@@ -8,6 +8,8 @@ INT g_IfIndex = -1;
 XSK_POLL_MODE g_PollMode;
 AdapterMeta* g_LocalAdapter=NULL;
 
+BOOLEAN output_stdout = FALSE;
+
 UINT32
 RingPairReserve(
     _In_ XSK_RING* ConsumerRing,
@@ -55,8 +57,6 @@ PrintRingInfo(
     PrintRing("comp", InfoSet.Completion);
 }
 
-
-
 void RssQueue::SetMemory(UINT64 umemsize, ULONG umemchunksize) {
 	UINT64 RingSize64 = umemsize / umemchunksize;
 	ASSERT_FRE(RingSize64 <= MAXUINT32);
@@ -69,7 +69,7 @@ void RssQueue::SetMemory(UINT64 umemsize, ULONG umemchunksize) {
 	ASSERT_FRE(this->umemchunkSize - this->umemHeadroom >= this->txPatternLength);
 };
 
-BOOL RssQueue::InitSharedMemory() {
+BOOL RssQueue::initSharedMemory() {
     this->umemReg.ChunkSize = this->umemchunkSize;
     this->umemReg.Headroom = this->umemHeadroom;
     this->umemReg.TotalSize = 2 * this->umemSize;
@@ -93,7 +93,10 @@ BOOL RssQueue::InitSharedMemory() {
 BOOL RssQueue::InitDataPath(INT ifindex) {
 	HRESULT res;
 	UINT32 bindFlags = 0;
-	res =
+	
+    this->initSharedMemory();
+	
+    res =
 		XskSetSockopt(
 			this->sock, XSK_SOCKOPT_UMEM_REG, &this->umemReg,
 			sizeof(this->umemReg));
@@ -197,6 +200,7 @@ BOOL RssQueue::InitDataPath(INT ifindex) {
 			this->sock, XSK_SOCKOPT_POLL_MODE, &this->pollMode, sizeof(this->pollMode));
 	ASSERT_FRE(res == S_OK);
 
+	this->initRing();
 	return TRUE;
 };
 
@@ -241,7 +245,7 @@ BOOL RssQueue::AttachXdpProgram(INT ifindex) {
 	return TRUE;
 }
 
-BOOL RssQueue::InitRing() {
+BOOL RssQueue::initRing() {
     //
     // Free ring starts off with all UMEM descriptors.
     //
@@ -513,4 +517,522 @@ RssQueue::PrintFinalStats()
     }
 }
 
+VOID
+RssQueue::writeTxPackets(
+    //RssQueue * Queue,
+    UINT32 FreeConsumerIndex,
+    UINT32 TxProducerIndex,
+    UINT32 Count
+)
+{
+    for (UINT32 i = 0; i < Count; i++) {
+        UINT64* freeDesc = (UINT64*)XskRingGetElement(&this->freeRxRing, FreeConsumerIndex++);
+        XSK_BUFFER_DESCRIPTOR* txDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&this->txRing, TxProducerIndex++);
 
+        txDesc->Address.BaseAddress = *freeDesc;
+        assert(Queue->umemReg.Headroom <= MAXUINT16);
+        txDesc->Address.Offset = (UINT16)this->umemReg.Headroom;
+        txDesc->Length = this->txiosize;
+        //
+        // This benchmark does not write data into the TX packet.
+        //
+        printf_verbose("Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
+            txDesc->Address.BaseAddress, txDesc->Address.Offset, txDesc->Length);
+    }
+}
+
+VOID
+RssQueue::notifyDriver(
+    XSK_NOTIFY_FLAGS DirectionFlags
+)
+{
+    HRESULT res;
+    XSK_NOTIFY_RESULT_FLAGS notifyResult;
+
+    if (this->flags.optimizePoking) {
+        //
+        // Ensure poke flags are read after writing producer/consumer indices.
+        //
+        XdpBarrierBetweenReleaseAndAcquire();
+
+        if ((DirectionFlags & XSK_NOTIFY_FLAG_POKE_RX) && !XskRingProducerNeedPoke(&this->fillRing)) {
+            DirectionFlags &= ~XSK_NOTIFY_FLAG_POKE_RX;
+        }
+        if ((DirectionFlags & XSK_NOTIFY_FLAG_POKE_TX) && !XskRingProducerNeedPoke(&this->txRing)) {
+            DirectionFlags &= ~XSK_NOTIFY_FLAG_POKE_TX;
+        }
+    }
+
+    this->pokesRequestedCount++;
+
+    if (DirectionFlags != 0) {
+        this->pokesPerformedCount++;
+        res =
+            XskNotifySocket(
+                this->sock, DirectionFlags, WAIT_DRIVER_TIMEOUT_MS, &notifyResult);
+
+        if (DirectionFlags & (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX)) {
+            ASSERT_FRE(res == S_OK || res == HRESULT_FROM_WIN32(ERROR_TIMEOUT));
+        }
+        else {
+            ASSERT_FRE(res == S_OK);
+            ASSERT_FRE(notifyResult == 0);
+        }
+    }
+}
+
+VOID
+RssQueue::readCompletionPackets(
+    UINT32 CompConsumerIndex,
+    UINT32 FreeProducerIndex,
+    UINT32 Count
+)
+{
+    for (UINT32 i = 0; i < Count; i++) {
+        UINT64* compDesc = (UINT64*)XskRingGetElement(&this->compRing, CompConsumerIndex++);
+        UINT64* freeDesc = (UINT64*)XskRingGetElement(&this->freeRxRing, FreeProducerIndex++);
+
+        *freeDesc = *compDesc;
+        printf_verbose("Consuming COMP entry {address:%llu}\n", *compDesc);
+    }
+}
+
+UINT32
+RssQueue::ProcessTx(
+    BOOLEAN Wait
+)
+{
+    XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
+    UINT32 available;
+    UINT32 consumerIndex;
+    UINT32 producerIndex;
+    UINT32 processed = 0;
+
+    available =
+        RingPairReserve(
+            &this->compRing, &consumerIndex, &this->freeRxRing, &producerIndex, this->iobatchsize);
+    if (available > 0) {
+        //ReadCompletionPackets(this, consumerIndex, producerIndex, available);
+        this->readCompletionPackets( consumerIndex, producerIndex, available);
+        XskRingConsumerRelease(&this->compRing, available);
+        XskRingProducerSubmit(&this->freeRxRing, available);
+
+        processed += available;
+        this->packetCount += available;
+
+        if (XskRingProducerReserve(&this->txRing, MAXUINT32, &producerIndex) !=
+            this->txRing.Size) {
+            notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+        }
+    }
+
+    available =
+        RingPairReserve(
+            &this->freeRxRing, &consumerIndex, &this->txRing, &producerIndex, this->iobatchsize);
+    if (available > 0) {
+        //WriteTxPackets(this, consumerIndex, producerIndex, available);
+        this->writeTxPackets(consumerIndex, producerIndex, available);
+        XskRingConsumerRelease(&this->freeRxRing, available);
+        XskRingProducerSubmit(&this->txRing, available);
+
+        processed += available;
+        notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+    }
+
+    if (Wait &&
+        XskRingConsumerReserve(&this->compRing, 1, &consumerIndex) == 0 &&
+        XskRingConsumerReserve(&this->freeRxRing, 1, &consumerIndex) == 0) {
+        notifyFlags |= XSK_NOTIFY_FLAG_WAIT_TX;
+    }
+
+    if (this->pollMode == XSK_POLL_MODE_SOCKET) {
+        //
+        // If socket poll mode is supported by the program, always enable pokes.
+        //
+        notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+    }
+
+    if (notifyFlags != 0) {
+        //NotifyDriver(Queue, notifyFlags);
+        this->notifyDriver( notifyFlags);
+    }
+
+    return processed;
+}
+
+VOID
+RssQueue::readRxPackets(
+    UINT32 RxConsumerIndex,
+    UINT32 FreeProducerIndex,
+    UINT32 Count
+)
+{
+    for (UINT32 i = 0; i < Count; i++) {
+        XSK_BUFFER_DESCRIPTOR* rxDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&this->rxRing, RxConsumerIndex++);
+        UINT64* freeDesc = (UINT64*)XskRingGetElement(&this->freeRxRing, FreeProducerIndex++);
+
+        *freeDesc = rxDesc->Address.BaseAddress;
+        printf_verbose("Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
+            rxDesc->Address.BaseAddress, rxDesc->Address.Offset, rxDesc->Length);
+
+        if (output_stdout) {
+            void* pEthHdr =
+                (void*)((UCHAR*)this->umemReg.Address + rxDesc->Address.BaseAddress + rxDesc->Address.Offset);
+            PrintPacketMeta(pEthHdr);
+        }
+    }
+}
+
+VOID
+RssQueue::writeFillPackets(
+    UINT32 FreeConsumerIndex,
+    UINT32 FillProducerIndex,
+    UINT32 Count
+)
+{
+    for (UINT32 i = 0; i < Count; i++) {
+        UINT64* freeDesc = (UINT64*)XskRingGetElement(&this->freeRxRing, FreeConsumerIndex++);
+        UINT64* fillDesc = (UINT64*)XskRingGetElement(&this->fillRing, FillProducerIndex++);
+
+        *fillDesc = *freeDesc;
+        printf_verbose("Producing FILL entry {address:%llu}}\n", *freeDesc);
+    }
+}
+
+
+UINT32
+RssQueue::ProcessRx(
+    BOOLEAN Wait
+)
+{
+    XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
+    UINT32 available;
+    UINT32 consumerIndex;
+    UINT32 producerIndex;
+    UINT32 processed = 0;
+
+    available =
+        RingPairReserve(
+            &this->rxRing, &consumerIndex, &this->freeRxRing, &producerIndex, this->iobatchsize);
+    if (available > 0) {
+        //ReadRxPackets(this, consumerIndex, producerIndex, available);
+        this->readRxPackets(consumerIndex, producerIndex, available);
+        XskRingConsumerRelease(&this->rxRing, available);
+        XskRingProducerSubmit(&this->freeRxRing, available);
+
+        processed += available;
+        this->packetCount += available;
+    }
+
+    available =
+        RingPairReserve(
+            &this->freeRxRing, &consumerIndex, &this->fillRing, &producerIndex, this->iobatchsize);
+    if (available > 0) {
+        this->writeFillPackets(consumerIndex, producerIndex, available);
+        XskRingConsumerRelease(&this->freeRxRing, available);
+        XskRingProducerSubmit(&this->fillRing, available);
+
+        processed += available;
+        notifyFlags |= XSK_NOTIFY_FLAG_POKE_RX;
+    }
+
+    if (Wait &&
+        XskRingConsumerReserve(&this->rxRing, 1, &consumerIndex) == 0 &&
+        XskRingConsumerReserve(&this->freeRxRing, 1, &consumerIndex) == 0) {
+        notifyFlags |= XSK_NOTIFY_FLAG_WAIT_RX;
+    }
+
+    if (this->pollMode == XSK_POLL_MODE_SOCKET) {
+        //
+        // If socket poll mode is supported by the program, always enable pokes.
+        //
+        notifyFlags |= XSK_NOTIFY_FLAG_POKE_RX;
+    }
+
+    if (notifyFlags != 0) {
+        //NotifyDriver(this, notifyFlags);
+        this->notifyDriver(notifyFlags);
+    }
+
+    return processed;
+}
+
+UINT32
+RssQueue::ProcessFwd(
+    BOOLEAN Wait
+)
+{
+    XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
+    UINT32 available;
+    UINT32 consumerIndex;
+    UINT32 producerIndex;
+    UINT32 processed = 0;
+
+    //
+    // Move packets from the RX ring to the TX ring.
+    //
+    available =
+        RingPairReserve(
+            &this->rxRing, &consumerIndex, &this->txRing, &producerIndex, this->iobatchsize);
+    if (available > 0) {
+        for (UINT32 i = 0; i < available; i++) {
+            XSK_BUFFER_DESCRIPTOR* rxDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&this->rxRing, consumerIndex++);
+            XSK_BUFFER_DESCRIPTOR* txDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&this->txRing, producerIndex++);
+
+            printf_verbose("Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
+                rxDesc->Address.BaseAddress, rxDesc->Address.Offset, rxDesc->Length);
+
+            txDesc->Address = rxDesc->Address;
+            txDesc->Length = rxDesc->Length;
+
+            if (this->flags.rxInject == this->flags.txInspect) {
+                //
+                // Swap MAC addresses.
+                //
+                CHAR* ethHdr =
+                    (CHAR*)this->umemReg.Address + txDesc->Address.BaseAddress +
+                    txDesc->Address.Offset;
+                CHAR tmp[6];
+                memcpy(tmp, ethHdr, sizeof(tmp));
+                memcpy(ethHdr, ethHdr + 6, sizeof(tmp));
+                memcpy(ethHdr + 6, tmp, sizeof(tmp));
+            }
+
+            printf_verbose("Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
+                txDesc->Address.BaseAddress, txDesc->Address.Offset, txDesc->Length);
+        }
+
+        XskRingConsumerRelease(&this->rxRing, available);
+        XskRingProducerSubmit(&this->txRing, available);
+
+        processed += available;
+        notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+    }
+
+    //
+    // Move packets from the completion ring to the free ring.
+    //
+    available =
+        RingPairReserve(
+            &this->compRing, &consumerIndex, &this->freeRxRing, &producerIndex, this->iobatchsize);
+    if (available > 0) {
+        for (UINT32 i = 0; i < available; i++) {
+            UINT64* compDesc = (UINT64*)XskRingGetElement(&this->compRing, consumerIndex++);
+            UINT64* freeDesc = (UINT64*)XskRingGetElement(&this->freeRxRing, producerIndex++);
+
+            *freeDesc = *compDesc;
+
+            printf_verbose("Consuming COMP entry {address:%llu}\n", *compDesc);
+        }
+
+        XskRingConsumerRelease(&this->compRing, available);
+        XskRingProducerSubmit(&this->freeRxRing, available);
+
+        processed += available;
+        this->packetCount += available;
+
+        if (XskRingProducerReserve(&this->txRing, MAXUINT32, &producerIndex) !=
+            this->txRing.Size) {
+            notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+        }
+    }
+
+    //
+    // Move packets from the free ring to the fill ring.
+    //
+    available =
+        RingPairReserve(
+            &this->freeRxRing, &consumerIndex, &this->fillRing, &producerIndex, this->iobatchsize);
+    if (available > 0) {
+        for (UINT32 i = 0; i < available; i++) {
+            UINT64* freeDesc = (UINT64*)XskRingGetElement(&this->freeRxRing, consumerIndex++);
+            UINT64* fillDesc = (UINT64*)XskRingGetElement(&this->fillRing, producerIndex++);
+
+            *fillDesc = *freeDesc;
+
+            printf_verbose("Producing FILL entry {address:%llu}\n", *freeDesc);
+        }
+
+        XskRingConsumerRelease(&this->freeRxRing, available);
+        XskRingProducerSubmit(&this->fillRing, available);
+
+        processed += available;
+        notifyFlags |= XSK_NOTIFY_FLAG_POKE_RX;
+    }
+
+    if (Wait &&
+        XskRingConsumerReserve(&this->rxRing, 1, &consumerIndex) == 0 &&
+        XskRingConsumerReserve(&this->compRing, 1, &consumerIndex) == 0 &&
+        XskRingConsumerReserve(&this->freeRxRing, 1, &consumerIndex) == 0) {
+        notifyFlags |= (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX);
+    }
+
+    if (this->pollMode == XSK_POLL_MODE_SOCKET) {
+        //
+        // If socket poll mode is supported by the program, always enable pokes.
+        //
+        notifyFlags |= (XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_POKE_TX);
+    }
+
+    if (notifyFlags != 0) {
+        //NotifyDriver(this, notifyFlags);
+        this->notifyDriver(notifyFlags);
+    }
+
+    return processed;
+}
+
+UINT32
+RssQueue::ProcessLat(
+    BOOLEAN Wait
+){
+    XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
+    UINT32 available;
+    UINT32 consumerIndex;
+    UINT32 producerIndex;
+    UINT32 processed = 0;
+
+    //
+    // Move frames from the RX ring to the RX fill ring, recording the timestamp
+    // deltas as we go.
+    //
+    available =
+        RingPairReserve(
+            &this->rxRing, &consumerIndex, &this->fillRing, &producerIndex, this->iobatchsize);
+    if (available > 0) {
+        LARGE_INTEGER NowQpc;
+        VERIFY(QueryPerformanceCounter(&NowQpc));
+
+        for (UINT32 i = 0; i < available; i++) {
+            XSK_BUFFER_DESCRIPTOR* rxDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&this->rxRing, consumerIndex++);
+            UINT64* fillDesc = (UINT64*)XskRingGetElement(&this->fillRing, producerIndex++);
+
+            printf_verbose(
+                "Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
+                rxDesc->Address.BaseAddress, rxDesc->Address.Offset,
+                rxDesc->Length);
+
+            INT64 UNALIGNED* Timestamp = (INT64 UNALIGNED*)
+                ((CHAR*)this->umemReg.Address + rxDesc->Address.BaseAddress +
+                    rxDesc->Address.Offset + this->txPatternLength);
+
+            printf_verbose("latency: %lld\n", NowQpc.QuadPart - *Timestamp);
+
+            if (this->latIndex < this->latSamplesCount) {
+                this->latSamples[this->latIndex++] = NowQpc.QuadPart - *Timestamp;
+            }
+
+            *fillDesc = rxDesc->Address.BaseAddress;
+
+            printf_verbose("Producing FILL entry {address:%llu}\n", *fillDesc);
+        }
+
+        XskRingConsumerRelease(&this->rxRing, available);
+        XskRingProducerSubmit(&this->fillRing, available);
+
+        processed += available;
+        this->packetCount += available;
+
+        notifyFlags |= XSK_NOTIFY_FLAG_POKE_RX;
+    }
+
+    //
+    // Move frames from the TX completion ring to the free ring.
+    //
+    available =
+        RingPairReserve(
+            &this->compRing, &consumerIndex, &this->freeRxRing, &producerIndex, this->iobatchsize);
+    if (available > 0) {
+        //ReadCompletionPackets(this, consumerIndex, producerIndex, available);
+        this->readCompletionPackets( consumerIndex, producerIndex, available);
+        XskRingConsumerRelease(&this->compRing, available);
+        XskRingProducerSubmit(&this->freeRxRing, available);
+        processed += available;
+
+        if (XskRingProducerReserve(&this->txRing, MAXUINT32, &producerIndex) !=
+            this->txRing.Size) {
+            notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+        }
+    }
+
+    //
+    // Move frames from the free ring to the TX ring, stamping the current time
+    // onto each frame.
+    //
+    available =
+        RingPairReserve(
+            &this->freeRxRing, &consumerIndex, &this->txRing, &producerIndex, this->iobatchsize);
+    if (available > 0) {
+        LARGE_INTEGER NowQpc;
+        VERIFY(QueryPerformanceCounter(&NowQpc));
+
+        for (UINT32 i = 0; i < available; i++) {
+            UINT64* freeDesc = (UINT64*)XskRingGetElement(&this->freeRxRing, consumerIndex++);
+            XSK_BUFFER_DESCRIPTOR* txDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&this->txRing, producerIndex++);
+
+            INT64 UNALIGNED* Timestamp = (INT64 UNALIGNED*)
+                ((CHAR*)this->umemReg.Address + *freeDesc +
+                    this->umemReg.Headroom + this->txPatternLength);
+            *Timestamp = NowQpc.QuadPart;
+
+            txDesc->Address.BaseAddress = *freeDesc;
+            assert(this->umemReg.Headroom <= MAXUINT16);
+            txDesc->Address.Offset = this->umemReg.Headroom;
+            txDesc->Length = this->txiosize;
+
+            printf_verbose(
+                "Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
+                txDesc->Address.BaseAddress, txDesc->Address.Offset, txDesc->Length);
+        }
+
+        XskRingConsumerRelease(&this->freeRxRing, available);
+        XskRingProducerSubmit(&this->txRing, available);
+
+        processed += available;
+        notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+    }
+
+    if (Wait &&
+        XskRingConsumerReserve(&this->rxRing, 1, &consumerIndex) == 0 &&
+        XskRingConsumerReserve(&this->compRing, 1, &consumerIndex) == 0 &&
+        XskRingConsumerReserve(&this->freeRxRing, 1, &consumerIndex) == 0) {
+        notifyFlags |= (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX);
+    }
+
+    if (this->pollMode == XSK_POLL_MODE_SOCKET) {
+        //
+        // If socket poll mode is supported by the program, always enable pokes.
+        //
+        notifyFlags |= (XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_POKE_TX);
+    }
+
+    if (notifyFlags != 0) {
+        //NotifyDriver(this, notifyFlags);
+        this->notifyDriver(notifyFlags);
+    }
+
+    return processed;
+}
+
+UINT32 RssQueue::IssueRequest() {
+    UINT32 consumerIndex;
+    UINT32 producerIndex;
+    UINT32 available;
+
+    this->lastTick = GetTickCount64();
+
+    //
+    // Fill up the RX fill ring. Once this initial fill is performed, the
+    // RX fill ring and RX ring operate in a closed loop.
+    //
+    available = XskRingProducerReserve(&this->fillRing, this->ringsize, &producerIndex);
+    ASSERT_FRE(available == this->ringsize);
+    available = XskRingConsumerReserve(&this->freeRxRing, this->ringsize, &consumerIndex);
+    ASSERT_FRE(available == this->ringsize);
+    //WriteFillPackets(queue, consumerIndex, producerIndex, available);
+    this->writeFillPackets(consumerIndex, producerIndex, available);
+    XskRingConsumerRelease(&this->freeRxRing, available);
+    XskRingProducerSubmit(&this->fillRing, available);
+
+    return available;
+}

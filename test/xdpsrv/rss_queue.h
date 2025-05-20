@@ -39,6 +39,7 @@
 #define STATS_ARRAY_SIZE 60
 
 extern INT g_IfIndex;
+extern BOOLEAN output_stdout;
 extern CHAR* modestr;
 
 
@@ -155,17 +156,48 @@ public:
 
         this->payloadsize = DEFAULT_PAYLOAD_SIZE;
     }
-    BOOL InitSharedMemory();
-
-    BOOL InitDataPath(INT ifindex) ;
-    BOOL InitRing();
-
-    BOOL AttachXdpProgram(INT ifindex);
+private:
+    VOID notifyDriver(XSK_NOTIFY_FLAGS DirectionFlags);
+    VOID writeTxPackets(
+        UINT32 FreeConsumerIndex,
+        UINT32 TxProducerIndex,
+        UINT32 Count);
+	VOID readCompletionPackets(
+		UINT32 CompConsumerIndex,
+		UINT32 FreeProducerIndex,
+		UINT32 Count);
+	VOID readRxPackets(
+		UINT32 RxConsumerIndex,
+		UINT32 FreeProducerIndex,
+		UINT32 Count);
+	VOID writeFillPackets(
+		UINT32 FreeConsumerIndex,
+		UINT32 FillProducerIndex,
+		UINT32 Count
+	);
+    BOOL initSharedMemory();
+    BOOL initRing();
+public:
 
     void SetMemory(UINT64 umemsize, ULONG umemchunksize) ;
-	VOID ProcessPeriodicStats() ;
+
+    BOOL InitDataPath(INT ifindex) ;
+    BOOL AttachXdpProgram(INT ifindex);
+
+
+
+    // Functions for running modes.
+	UINT32 ProcessTx(BOOLEAN Wait);
+	UINT32 ProcessRx(BOOLEAN Wait);
+    UINT32 ProcessFwd(BOOLEAN Wait);
+    UINT32 ProcessLat(BOOLEAN Wait);
+
+    // Helpers for stats
     VOID PrintFinalStats();
     VOID PrintFinalLatStats();
+    VOID ProcessPeriodicStats() ;
+
+	UINT32 IssueRequest();
 };
 
 
