@@ -3,45 +3,24 @@
 // Licensed under the MIT License.
 //
 
-#include <afxdp_helper.h>
-#include <afxdp_experimental.h>
-#include <xdpapi.h>
-
-#include <assert.h>
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
-
-#include "network_utils.h"
+#include "rss_queue.h"
+#include "internal_utils.h"
+#include "xdpsrv.h"
+#include "netport.h"
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
+    
+//AdapterMeta g_LocalAdapter;
 
-#define SHALLOW_STR_OF(x) #x
-#define STR_OF(x) SHALLOW_STR_OF(x)
-
-#define ALIGN_DOWN_BY(length, alignment) \
-    ((ULONG_PTR)(length)& ~(alignment - 1))
-#define ALIGN_UP_BY(length, alignment) \
-    (ALIGN_DOWN_BY(((ULONG_PTR)(length)+alignment - 1), alignment))
-
-#define STRUCT_FIELD_OFFSET(structPtr, field) \
-    ((UCHAR *)&(structPtr)->field - (UCHAR *)(structPtr))
-
-#define DEFAULT_UMEM_SIZE 65536
-#define DEFAULT_UMEM_CHUNK_SIZE 4096
-#define DEFAULT_UMEM_HEADROOM 0
-#define DEFAULT_IO_BATCH 1
-#define DEFAULT_NODE_AFFINITY -1
-#define DEFAULT_GROUP -1
-#define DEFAULT_IDEAL_CPU -1
-#define DEFAULT_CPU_AFFINITY 0
-#define DEFAULT_UDP_DEST_PORT 0
-#define DEFAULT_DURATION ULONG_MAX
-#define DEFAULT_TX_IO_SIZE 64
-#define DEFAULT_LAT_COUNT 10000000
-#define DEFAULT_YIELD_COUNT 0
-
-#define DEFAULT_PAYLOAD_SIZE 64
+//UINT16 udpDestPort = DEFAULT_UDP_DEST_PORT;
+ULONG duration = DEFAULT_DURATION;
+//BOOLEAN verbose = FALSE;
+BOOLEAN output_stdout = FALSE;
+BOOLEAN done = FALSE;
+//BOOLEAN largePages = FALSE;
+//MODE mode;
+CHAR* modestr;
+HANDLE periodicStatsEvent;
 
 CHAR* HELP =
 "xskbench.exe <rx|tx|fwd|lat> -i <ifindex> [OPTIONS] <-t THREAD_PARAMS> [-t THREAD_PARAMS...] \n"
@@ -129,119 +108,7 @@ CHAR* HELP =
 "   xskbench.exe lat -i 6 -t -q -id 0 -ring_size 8\n"
 ;
 
-#define printf_error(...) \
-    fprintf(stderr, __VA_ARGS__)
-
-#define printf_verbose(format, ...) \
-    if (verbose) { LARGE_INTEGER Qpc; QueryPerformanceCounter(&Qpc); printf("Qpc=%llu " format, Qpc.QuadPart, __VA_ARGS__); }
-
-#define ABORT(...) \
-    printf_error(__VA_ARGS__); exit(1)
-
-#define ASSERT_FRE(expr) \
-    if (!(expr)) { ABORT("(%s) failed line %d\n", #expr, __LINE__);}
-
-#if DBG
-#define VERIFY(expr) assert(expr)
-#else
-#define VERIFY(expr) (expr)
-#endif
-
-#define Usage() PrintUsage(__LINE__)
-
-#define WAIT_DRIVER_TIMEOUT_MS 1050
-#define STATS_ARRAY_SIZE 60
-
-typedef enum {
-    ModeRx,
-    ModeTx,
-    ModeFwd,
-    ModeLat,
-} MODE;
-
-typedef enum {
-    XdpModeSystem,
-    XdpModeGeneric,
-    XdpModeNative,
-} XDP_MODE;
-
-typedef struct {
-    INT queueId;
-    HANDLE sock;
-    HANDLE rxProgram;
-    XDP_MODE xdpMode;
-    UINT64 umemsize;
-    ULONG umemchunksize;
-    ULONG umemheadroom;
-    ULONG txiosize;
-    ULONG iobatchsize;
-    UINT32 ringsize;
-    UCHAR* txPattern;
-    UINT32 txPatternLength;
-    INT64* latSamples;
-    UINT32 latSamplesCount;
-    UINT32 latIndex;
-    XSK_POLL_MODE pollMode;
-    
-    ULONG payloadsize;
-
-    AdapterMeta localAdapter;
-
-    struct {
-        BOOLEAN periodicStats : 1;
-        BOOLEAN rx : 1;
-        BOOLEAN tx : 1;
-        BOOLEAN optimizePoking : 1;
-        BOOLEAN rxInject : 1;
-        BOOLEAN txInspect : 1;
-    } flags;
-
-    double statsArray[STATS_ARRAY_SIZE];
-    ULONG currStatsArrayIdx;
-
-    ULONGLONG lastTick;
-    ULONGLONG packetCount;
-    ULONGLONG lastPacketCount;
-    ULONGLONG lastRxDropCount;
-    ULONGLONG pokesRequestedCount;
-    ULONGLONG lastPokesRequestedCount;
-    ULONGLONG pokesPerformedCount;
-    ULONGLONG lastPokesPerformedCount;
-
-    XSK_RING rxRing;
-    XSK_RING txRing;
-    XSK_RING fillRing;
-    XSK_RING compRing;
-    XSK_RING freeRxRing;
-    XSK_RING freeTxRing;
-    XSK_UMEM_REG umemReg;
-} MY_QUEUE;
-
-typedef struct {
-    HANDLE threadHandle;
-    HANDLE readyEvent;
-    LONG nodeAffinity;
-    LONG group;
-    LONG idealCpu;
-    UINT32 yieldCount;
-    DWORD_PTR cpuAffinity;
-    BOOLEAN wait;
-
-    UINT32 queueCount;
-    MY_QUEUE* queues;
-} MY_THREAD;
-
-INT ifindex = -1;
-UINT16 udpDestPort = DEFAULT_UDP_DEST_PORT;
-ULONG duration = DEFAULT_DURATION;
-BOOLEAN verbose = FALSE;
-BOOLEAN output_stdout = FALSE;
-BOOLEAN done = FALSE;
-BOOLEAN largePages = FALSE;
-MODE mode;
-CHAR* modestr;
-HANDLE periodicStatsEvent;
-
+/*
 UINT32
 RingPairReserve(
     _In_ XSK_RING* ConsumerRing,
@@ -255,43 +122,9 @@ RingPairReserve(
     MaxCount = XskRingProducerReserve(ProducerRing, MaxCount, ProducerIndex);
     return MaxCount;
 }
-
-VOID
-PrintRing(
-    CHAR* Name,
-    XSK_RING_INFO RingInfo
-)
-{
-    if (RingInfo.Size != 0) {
-        printf_verbose(
-            "%s\tring:\n\tva=0x%p\n\tsize=%d\n\tdescriptorsOff=%d\n\t"
-            "producerIndexOff=%d(%lu)\n\tconsumerIndexOff=%d(%lu)\n\t"
-            "flagsOff=%d(%lu)\n\telementStride=%d\n",
-            Name, RingInfo.Ring, RingInfo.Size, RingInfo.DescriptorsOffset,
-            RingInfo.ProducerIndexOffset,
-            *(UINT32*)(RingInfo.Ring + RingInfo.ProducerIndexOffset),
-            RingInfo.ConsumerIndexOffset,
-            *(UINT32*)(RingInfo.Ring + RingInfo.ConsumerIndexOffset),
-            RingInfo.FlagsOffset,
-            *(UINT32*)(RingInfo.Ring + RingInfo.FlagsOffset),
-            RingInfo.ElementStride);
-    }
-}
-
-VOID
-PrintRingInfo(
-    XSK_RING_INFO_SET InfoSet
-)
-{
-    PrintRing("rx", InfoSet.Rx);
-    PrintRing("tx", InfoSet.Tx);
-    PrintRing("fill", InfoSet.Fill);
-    PrintRing("comp", InfoSet.Completion);
-}
-
 VOID
 AttachXdpProgram(
-    MY_QUEUE* Queue
+    RssQueue* Queue
 )
 {
     //XDP_RULE rule = { 0 };
@@ -326,12 +159,12 @@ AttachXdpProgram(
 
     res =
         XdpCreateProgram(
-            ifindex, &hookId, Queue->queueId, (XDP_CREATE_PROGRAM_FLAGS)flags, &rule, 1, &Queue->rxProgram);
+            g_IfIndex, &hookId, Queue->queueId, (XDP_CREATE_PROGRAM_FLAGS)flags, &rule, 1, &Queue->rxProgram);
     if (FAILED(res)) {
         ABORT("XdpCreateProgram failed: %d\n", res);
     }
 }
-
+*/
 VOID
 EnableLargePages(
     VOID
@@ -410,11 +243,11 @@ ParseUInt32A(
 VOID
 SetupSock(
     INT IfIndex,
-    MY_QUEUE * Queue
+    RssQueue * Queue
 )
 {
     HRESULT res;
-    UINT32 bindFlags = 0;
+    //UINT32 bindFlags = 0;
 
     printf_verbose("creating sock\n");
     res = XskCreate(&Queue->sock);
@@ -424,424 +257,17 @@ SetupSock(
 
     printf_verbose("XDP_UMEM_REG\n");
 
-    Queue->umemReg.ChunkSize = Queue->umemchunksize;
-    Queue->umemReg.Headroom = Queue->umemheadroom;
-    Queue->umemReg.TotalSize = Queue->umemsize;
+    Queue->InitSharedMemory();
+	Queue->InitDataPath(IfIndex);
 
-    if (largePages) {
-        //
-        // The memory subsystem requires allocations and mappings be aligned to
-        // the large page size. XDP ignores the final chunk, if truncated.
-        //
-        Queue->umemReg.TotalSize = ALIGN_UP_BY(Queue->umemReg.TotalSize, GetLargePageMinimum());
-    }
-
-    Queue->umemReg.Address =
-        VirtualAlloc(
-            NULL, Queue->umemReg.TotalSize,
-            (largePages ? MEM_LARGE_PAGES : 0) | MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    ASSERT_FRE(Queue->umemReg.Address != NULL);
-
-    res =
-        XskSetSockopt(
-            Queue->sock, XSK_SOCKOPT_UMEM_REG, &Queue->umemReg,
-            sizeof(Queue->umemReg));
-    ASSERT_FRE(res == S_OK);
-
-    printf_verbose("configuring fill ring with size %d\n", Queue->ringsize);
-    res =
-        XskSetSockopt(
-            Queue->sock, XSK_SOCKOPT_RX_FILL_RING_SIZE, &Queue->ringsize,
-            sizeof(Queue->ringsize));
-    ASSERT_FRE(res == S_OK);
-
-    printf_verbose("configuring completion ring with size %d\n", Queue->ringsize);
-    res =
-        XskSetSockopt(
-            Queue->sock, XSK_SOCKOPT_TX_COMPLETION_RING_SIZE, &Queue->ringsize,
-            sizeof(Queue->ringsize));
-    ASSERT_FRE(res == S_OK);
-
-    if (Queue->flags.rx) {
-        printf_verbose("configuring rx ring with size %d\n", Queue->ringsize);
-        res =
-            XskSetSockopt(
-                Queue->sock, XSK_SOCKOPT_RX_RING_SIZE, &Queue->ringsize,
-                sizeof(Queue->ringsize));
-        ASSERT_FRE(res == S_OK);
-        bindFlags |= XSK_BIND_FLAG_RX;
-    }
-    if (Queue->flags.tx) {
-        printf_verbose("configuring tx ring with size %d\n", Queue->ringsize);
-        res =
-            XskSetSockopt(
-                Queue->sock, XSK_SOCKOPT_TX_RING_SIZE, &Queue->ringsize,
-                sizeof(Queue->ringsize));
-        ASSERT_FRE(res == S_OK);
-        bindFlags |= XSK_BIND_FLAG_TX;
-    }
-
-    if (Queue->xdpMode == XdpModeGeneric) {
-        bindFlags |= XSK_BIND_FLAG_GENERIC;
-    }
-    else if (Queue->xdpMode == XdpModeNative) {
-        bindFlags |= XSK_BIND_FLAG_NATIVE;
-    }
-
-    if (Queue->flags.rxInject) {
-        //XDP_HOOK_ID hookId = { 0 };
-        XDP_HOOK_ID hookId;
-		memset(&hookId, 0, sizeof(XDP_HOOK_ID));
-        hookId.Layer = XDP_HOOK_L2;
-        hookId.Direction = XDP_HOOK_RX;
-        hookId.SubLayer = XDP_HOOK_INJECT;
-
-        printf_verbose("configuring tx inject to rx\n");
-        res = XskSetSockopt(Queue->sock, XSK_SOCKOPT_TX_HOOK_ID, &hookId, sizeof(hookId));
-        ASSERT_FRE(res == S_OK);
-    }
-
-    if (Queue->flags.txInspect) {
-        //XDP_HOOK_ID hookId = { 0 };
-        XDP_HOOK_ID hookId;
-		memset(&hookId, 0, sizeof(XDP_HOOK_ID));
-        hookId.Layer = XDP_HOOK_L2;
-        hookId.Direction = XDP_HOOK_TX;
-        hookId.SubLayer = XDP_HOOK_INSPECT;
-
-        printf_verbose("configuring rx from tx inspect\n");
-        res = XskSetSockopt(Queue->sock, XSK_SOCKOPT_RX_HOOK_ID, &hookId, sizeof(hookId));
-        ASSERT_FRE(res == S_OK);
-    }
-
-    printf_verbose(
-        "binding sock to ifindex %d queueId %d flags 0x%x\n", IfIndex, Queue->queueId, bindFlags);
-    res = XskBind(Queue->sock, IfIndex, Queue->queueId, (XSK_BIND_FLAGS)bindFlags);
-    ASSERT_FRE(res == S_OK);
-
-    printf_verbose("activating sock\n");
-    res = XskActivate(Queue->sock, (XSK_ACTIVATE_FLAGS)0);
-    ASSERT_FRE(res == S_OK);
-
-    printf_verbose("XSK_SOCKOPT_RING_INFO\n");
-    XSK_RING_INFO_SET infoSet = { 0 };
-    UINT32 ringInfoSize = sizeof(infoSet);
-    res = XskGetSockopt(Queue->sock, XSK_SOCKOPT_RING_INFO, &infoSet, &ringInfoSize);
-    ASSERT_FRE(res == S_OK);
-    ASSERT_FRE(ringInfoSize == sizeof(infoSet));
-    PrintRingInfo(infoSet);
-
-    XskRingInitialize(&Queue->fillRing, &infoSet.Fill);
-    XskRingInitialize(&Queue->compRing, &infoSet.Completion);
-
-    if (Queue->flags.rx) {
-        XskRingInitialize(&Queue->rxRing, &infoSet.Rx);
-    }
-    if (Queue->flags.tx) {
-        XskRingInitialize(&Queue->txRing, &infoSet.Tx);
-    }
-
-    res =
-        XskSetSockopt(
-            Queue->sock, XSK_SOCKOPT_POLL_MODE, &Queue->pollMode, sizeof(Queue->pollMode));
-    ASSERT_FRE(res == S_OK);
-
-    //
-    // Free ring starts off with all UMEM descriptors.
-    //
-    UINT64 numDescriptors64 = Queue->umemsize / Queue->umemchunksize;
-    ASSERT_FRE(numDescriptors64 <= MAXUINT32);
-    UINT32 numDescriptors = (UINT32)numDescriptors64;
-    typedef struct {
-        UINT32 Producer;
-        UINT32 Consumer;
-        UINT32 Flags;
-        UINT64 Descriptors[0];
-    } SFreeRingLayout;
-
-	SFreeRingLayout* FreeRingLayout =
-		(SFreeRingLayout*)calloc(1, sizeof(*FreeRingLayout) + numDescriptors * sizeof(*FreeRingLayout->Descriptors));
-    ASSERT_FRE(FreeRingLayout != NULL);
-
-    //XSK_RING_INFO freeRxRingInfo = { 0 };
-    XSK_RING_INFO freeRxRingInfo;
-	memset(&freeRxRingInfo, 0, sizeof(freeRxRingInfo));
-
-    freeRxRingInfo.Ring = (BYTE*)FreeRingLayout;
-    freeRxRingInfo.ProducerIndexOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Producer);
-    freeRxRingInfo.ConsumerIndexOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Consumer);
-    freeRxRingInfo.FlagsOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Flags);
-    freeRxRingInfo.DescriptorsOffset = (UINT32)STRUCT_FIELD_OFFSET(FreeRingLayout, Descriptors[0]);
-    freeRxRingInfo.Size = numDescriptors;
-    freeRxRingInfo.ElementStride = sizeof(*FreeRingLayout->Descriptors);
-    XskRingInitialize(&Queue->freeRxRing, &freeRxRingInfo);
-    PrintRing("free", freeRxRingInfo);
-
-	//const UINT32 kPacketSize = 64;
-    UCHAR* payload = new UCHAR[Queue->payloadsize];
-    memset(payload, 0, Queue->payloadsize);
-    UINT32 genPacketSize;
-    BYTE MtuBuffer[2048];
-	memset(MtuBuffer, 0, sizeof(MtuBuffer));
-    /*
-    char refBuffer[] = "123456789abc7c1e523ef5d808004500005c000000000111a2b00a0201720a02016c10e104d20048d2c900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\0";
-    UINT32 refSize = (UINT32)strlen(refBuffer);
-    BYTE* decodedMtu = new BYTE[refSize / 2];
-    memset((VOID*)decodedMtu, 0, refSize/2);
-    // Assert::AreEqual(kPacketSize, refSize / 2);
-	GetDescriptorPattern(decodedMtu, refSize, refBuffer);
-
-    */
-    /*
-	AdapterMeta localAdapter;
-	localAdapter.SetTarget("10.2.1.108", "12-34-56-78-9a-bc", 1234);
-	localAdapter.AssingLocal("10.2.1.114", "7C-1E-52-3E-F5-D8", 4321);
-    */
-	Queue->localAdapter.FillMTUBufferWithPayload(payload, Queue->payloadsize, genPacketSize, MtuBuffer);
-    /*
-	for (UINT32 i = 0; i < genPacketSize; i++) {
-		if (MtuBuffer[i] != decodedMtu[i]) {
-			printf("Mismatch at index %d: expected %02x, got %02x\n", i, decodedMtu[i], MtuBuffer[i]);
-		}
-	}
-    */
-	
-	//Queue->localAdapter.FillMTUBufferWithPayload(payload, Queue->txPatternLength, packetSize, MtuBuffer);
+    Queue->InitRing();
     
-    //delete[] decodedMtu;
-    delete[] payload;
-    
-    UINT64 desc = 0;
-    for (UINT32 i = 0; i < numDescriptors; i++) {
-        UINT64* Descriptor = (UINT64*)XskRingGetElement(&Queue->freeRxRing, i);
-        *Descriptor = desc;
-
-        if (mode == ModeTx || mode == ModeLat) {
-            memcpy(
-                (UCHAR*)Queue->umemReg.Address + desc + Queue->umemheadroom, 
-                //Queue->txPattern,
-                MtuBuffer,
-                //Queue->txPatternLength);
-                genPacketSize);
-        }
-
-        desc += Queue->umemchunksize;
-    }
-
-    XskRingProducerSubmit(&Queue->freeRxRing, numDescriptors);
-
-    AttachXdpProgram(Queue);
-}
-
-VOID
-ProcessPeriodicStats(
-    MY_QUEUE * Queue
-)
-{
-    UINT64 currentTick = GetTickCount64();
-    UINT64 tickDiff = currentTick - Queue->lastTick;
-    UINT64 packetCount;
-    UINT64 packetDiff;
-    double kpps;
-
-    if (tickDiff == 0) {
-        return;
-    }
-
-    packetCount = Queue->packetCount;
-    packetDiff = packetCount - Queue->lastPacketCount;
-    kpps = (packetDiff) ? (double)packetDiff / tickDiff : 0;
-
-    if (Queue->flags.periodicStats) {
-        XSK_STATISTICS stats;
-        UINT32 optSize = sizeof(stats);
-        ULONGLONG pokesRequested = Queue->pokesRequestedCount;
-        ULONGLONG pokesPerformed = Queue->pokesPerformedCount;
-        ULONGLONG pokesRequestedDiff;
-        ULONGLONG pokesPerformedDiff;
-        ULONGLONG pokesAvoidedPercentage;
-        ULONGLONG rxDropDiff;
-        double rxDropKpps;
-
-        if (pokesPerformed > pokesRequested) {
-            //
-            // Since these statistics aren't protected by synchronization, it's
-            // possible instruction reordering resulted in (pokesPerformed >
-            // pokesRequested). We know pokesPerformed <= pokesRequested, so
-            // correct this.
-            //
-            pokesRequested = pokesPerformed;
-        }
-
-        pokesRequestedDiff = pokesRequested - Queue->lastPokesRequestedCount;
-        pokesPerformedDiff = pokesPerformed - Queue->lastPokesPerformedCount;
-
-        if (pokesRequestedDiff == 0) {
-            pokesAvoidedPercentage = 0;
-        }
-        else {
-            pokesAvoidedPercentage =
-                (pokesRequestedDiff - pokesPerformedDiff) * 100 / pokesRequestedDiff;
-        }
-
-        HRESULT res =
-            XskGetSockopt(Queue->sock, XSK_SOCKOPT_STATISTICS, &stats, &optSize);
-        ASSERT_FRE(res == S_OK);
-        ASSERT_FRE(optSize == sizeof(stats));
-
-        rxDropDiff = stats.RxDropped - Queue->lastRxDropCount;
-        rxDropKpps = rxDropDiff ? (double)rxDropDiff / tickDiff : 0;
-        Queue->lastRxDropCount = stats.RxDropped;
-
-        printf("%s[%d]: %9.3f kpps %9.3f rxDropKpps rxDrop:%llu rxTrunc:%llu "
-            "rxBadDesc:%llu txBadDesc:%llu pokesAvoided:%llu%%\n",
-            modestr, Queue->queueId, kpps, rxDropKpps, stats.RxDropped, stats.RxTruncated,
-            stats.RxInvalidDescriptors, stats.TxInvalidDescriptors,
-            pokesAvoidedPercentage);
-
-        Queue->lastPokesRequestedCount = pokesRequested;
-        Queue->lastPokesPerformedCount = pokesPerformed;
-    }
-
-    Queue->statsArray[Queue->currStatsArrayIdx++ % STATS_ARRAY_SIZE] = kpps;
-    Queue->lastPacketCount = packetCount;
-    Queue->lastTick = currentTick;
-}
-
-INT
-LatCmp(
-    const VOID * A,
-    const VOID * B
-)
-{
-    const UINT64* a = (const UINT64*)A;
-    const UINT64* b = (const UINT64*)B;
-    return (*a > *b) - (*a < *b);
-}
-
-INT64
-QpcToUs64(
-    INT64 Qpc,
-    INT64 QpcFrequency
-)
-{
-    //
-    // Multiply by a big number (1000000, to convert seconds to microseconds)
-    // and divide by a big number (QpcFrequency, to convert counts to secs).
-    //
-    // Avoid overflow with separate multiplication/division of the high and low
-    // bits.
-    //
-    // Taken from QuicTimePlatToUs64 (https://github.com/microsoft/msquic).
-    //
-    UINT64 High = (Qpc >> 32) * 1000000;
-    UINT64 Low = (Qpc & MAXUINT32) * 1000000;
-    return
-        ((High / QpcFrequency) << 32) +
-        ((Low + ((High % QpcFrequency) << 32)) / QpcFrequency);
-}
-
-VOID
-PrintFinalLatStats(
-    MY_QUEUE * Queue
-)
-{
-    LARGE_INTEGER FreqQpc;
-    VERIFY(QueryPerformanceFrequency(&FreqQpc));
-
-    qsort(Queue->latSamples, Queue->latIndex, sizeof(*Queue->latSamples), LatCmp);
-
-    for (UINT32 i = 0; i < Queue->latIndex; i++) {
-        Queue->latSamples[i] = QpcToUs64(Queue->latSamples[i], FreqQpc.QuadPart);
-    }
-
-    printf(
-        "%-3s[%d]: min=%llu P50=%llu P90=%llu P99=%llu P99.9=%llu P99.99=%llu P99.999=%llu P99.9999=%llu us rtt\n",
-        modestr, Queue->queueId,
-        Queue->latSamples[0],
-        Queue->latSamples[(UINT32)(Queue->latIndex * 0.5)],
-        Queue->latSamples[(UINT32)(Queue->latIndex * 0.9)],
-        Queue->latSamples[(UINT32)(Queue->latIndex * 0.99)],
-        Queue->latSamples[(UINT32)(Queue->latIndex * 0.999)],
-        Queue->latSamples[(UINT32)(Queue->latIndex * 0.9999)],
-        Queue->latSamples[(UINT32)(Queue->latIndex * 0.99999)],
-        Queue->latSamples[(UINT32)(Queue->latIndex * 0.999999)]);
-}
-
-VOID
-PrintFinalStats(
-    MY_QUEUE * Queue
-)
-{
-    ULONG numEntries = min(Queue->currStatsArrayIdx, STATS_ARRAY_SIZE);
-    ULONG numEntriesIgnored = 0;
-    double min = 99999999;
-    double max = 0;
-    double sum = 0;
-    double avg = 0;
-    double stdDev = 0;
-
-    if (numEntries < 4) {
-        //
-        // We ignore first and last data points and standard deviation
-        // calculation needs at least 2 data points.
-        //
-        printf_error(
-            "%-3s[%d] Not enough data points collected for a statistical analysis\n",
-            modestr, Queue->queueId);
-        return;
-    }
-
-    //
-    // Scrub the statistics by ignoring the first and last entries.
-    //
-    if (Queue->currStatsArrayIdx <= STATS_ARRAY_SIZE) {
-        Queue->statsArray[0] = 0;
-        numEntriesIgnored++;
-    }
-    Queue->statsArray[(Queue->currStatsArrayIdx - 1) % STATS_ARRAY_SIZE] = 0;
-    numEntriesIgnored++;
-
-    //
-    // Average, min and max.
-    //
-    for (ULONG i = 0; i < numEntries; i++) {
-        if (Queue->statsArray[i] == 0) {
-            continue;
-        }
-
-        sum += Queue->statsArray[i];
-        min = min(min, Queue->statsArray[i]);
-        max = max(max, Queue->statsArray[i]);
-    }
-
-    numEntries -= numEntriesIgnored;
-    avg = sum / numEntries;
-
-    //
-    // Standard deviation.
-    //
-    for (ULONG i = 0; i < numEntries; i++) {
-        if (Queue->statsArray[i] == 0) {
-            continue;
-        }
-
-        stdDev += pow(Queue->statsArray[i] - avg, 2);
-    }
-
-    stdDev = sqrt(stdDev / (numEntries - 1));
-
-    printf("%-3s[%d]: avg=%08.3f stddev=%08.3f min=%08.3f max=%08.3f Kpps\n",
-        modestr, Queue->queueId, avg, stdDev, min, max);
-
-    if (mode == ModeLat) {
-        PrintFinalLatStats(Queue);
-    }
+    Queue->AttachXdpProgram(IfIndex);
 }
 
 VOID
 NotifyDriver(
-    MY_QUEUE * Queue,
+    RssQueue * Queue,
     XSK_NOTIFY_FLAGS DirectionFlags
 )
 {
@@ -882,7 +308,7 @@ NotifyDriver(
 
 VOID
 WriteFillPackets(
-    MY_QUEUE * Queue,
+    RssQueue * Queue,
     UINT32 FreeConsumerIndex,
     UINT32 FillProducerIndex,
     UINT32 Count
@@ -899,7 +325,7 @@ WriteFillPackets(
 
 VOID
 ReadRxPackets(
-    MY_QUEUE * Queue,
+    RssQueue * Queue,
     UINT32 RxConsumerIndex,
     UINT32 FreeProducerIndex,
     UINT32 Count
@@ -923,7 +349,7 @@ ReadRxPackets(
 
 UINT32
 ProcessRx(
-    MY_QUEUE * Queue,
+    RssQueue * Queue,
     BOOLEAN Wait
 )
 {
@@ -979,14 +405,14 @@ ProcessRx(
 
 VOID
 DoRxMode(
-    MY_THREAD * Thread
+    NetThread * Thread
 )
 {
     for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-        MY_QUEUE* queue = &Thread->queues[qIndex];
+        RssQueue* queue = &Thread->queues[qIndex];
 
         queue->flags.rx = TRUE;
-        SetupSock(ifindex, queue);
+        SetupSock(g_IfIndex, queue);
         queue->lastTick = GetTickCount64();
     }
 
@@ -1010,7 +436,7 @@ DoRxMode(
 
 VOID
 WriteTxPackets(
-    MY_QUEUE * Queue,
+    RssQueue * Queue,
     UINT32 FreeConsumerIndex,
     UINT32 TxProducerIndex,
     UINT32 Count
@@ -1034,7 +460,7 @@ WriteTxPackets(
 
 VOID
 ReadCompletionPackets(
-    MY_QUEUE * Queue,
+    RssQueue * Queue,
     UINT32 CompConsumerIndex,
     UINT32 FreeProducerIndex,
     UINT32 Count
@@ -1051,7 +477,7 @@ ReadCompletionPackets(
 
 UINT32
 ProcessTx(
-    MY_QUEUE * Queue,
+    RssQueue * Queue,
     BOOLEAN Wait
 )
 {
@@ -1112,14 +538,14 @@ ProcessTx(
 
 VOID
 DoTxMode(
-    MY_THREAD * Thread
+    NetThread * Thread
 )
 {
     for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-        MY_QUEUE* queue = &Thread->queues[qIndex];
+        RssQueue* queue = &Thread->queues[qIndex];
 
         queue->flags.tx = TRUE;
-        SetupSock(ifindex, queue);
+        SetupSock(g_IfIndex, queue);
         queue->lastTick = GetTickCount64();
     }
 
@@ -1144,7 +570,7 @@ DoTxMode(
 
 UINT32
 ProcessFwd(
-    MY_QUEUE * Queue,
+    RssQueue * Queue,
     BOOLEAN Wait
 )
 {
@@ -1269,15 +695,15 @@ ProcessFwd(
 
 VOID
 DoFwdMode(
-    MY_THREAD * Thread
+    NetThread * Thread
 )
 {
     for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-        MY_QUEUE* queue = &Thread->queues[qIndex];
+        RssQueue* queue = &Thread->queues[qIndex];
 
         queue->flags.rx = TRUE;
         queue->flags.tx = TRUE;
-        SetupSock(ifindex, queue);
+        SetupSock(g_IfIndex, queue);
         queue->lastTick = GetTickCount64();
     }
 
@@ -1302,7 +728,7 @@ DoFwdMode(
 
 UINT32
 ProcessLat(
-    MY_QUEUE * Queue,
+    RssQueue * Queue,
     BOOLEAN Wait
 )
 {
@@ -1434,18 +860,18 @@ ProcessLat(
 
 VOID
 DoLatMode(
-    MY_THREAD * Thread
+    NetThread * Thread
 )
 {
     for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-        MY_QUEUE* queue = &Thread->queues[qIndex];
+        RssQueue* queue = &Thread->queues[qIndex];
         UINT32 consumerIndex;
         UINT32 producerIndex;
         UINT32 available;
 
         queue->flags.rx = TRUE;
         queue->flags.tx = TRUE;
-        SetupSock(ifindex, queue);
+        SetupSock(g_IfIndex, queue);
         queue->lastTick = GetTickCount64();
 
         //
@@ -1490,11 +916,15 @@ PrintUsage(
 
 VOID
 ParseQueueArgs(
-    MY_QUEUE * Queue,
+    RssQueue * Queue,
     INT argc,
     CHAR * *argv
 )
 {
+    UINT64 umemsize = DEFAULT_UMEM_SIZE;
+    ULONG umemchunksize = DEFAULT_UMEM_CHUNK_SIZE;
+    ULONG umemheadroom = DEFAULT_UMEM_HEADROOM;
+    /*
     Queue->queueId = -1;
     Queue->xdpMode = XdpModeSystem;
     Queue->umemsize = DEFAULT_UMEM_SIZE;
@@ -1507,7 +937,7 @@ ParseQueueArgs(
     Queue->latSamplesCount = DEFAULT_LAT_COUNT;
 
     Queue->payloadsize = DEFAULT_PAYLOAD_SIZE;
-    
+    */
     INT dstipidx = -1;
 
     for (INT i = 0; i < argc; i++) {
@@ -1527,7 +957,8 @@ ParseQueueArgs(
             if (++i >= argc) {
                 Usage();
             }
-            Queue->umemchunksize = atoi(argv[i]);
+            //Queue->umemchunksize = atoi(argv[i]);
+            umemchunksize = atoi(argv[i]);
         }
         else if (!_stricmp(argv[i], "-txio")) {
             if (++i >= argc) {
@@ -1545,7 +976,8 @@ ParseQueueArgs(
             if (++i >= argc) {
                 Usage();
             }
-            if (!ParseUInt64A(argv[i], &Queue->umemsize)) {
+            //if (!ParseUInt64A(argv[i], &Queue->umemsize)) {
+            if (!ParseUInt64A(argv[i], &umemsize)) {
                 Usage();
             }
         }
@@ -1559,7 +991,8 @@ ParseQueueArgs(
             if (++i >= argc) {
                 Usage();
             }
-            Queue->umemheadroom = atoi(argv[i]);
+            //Queue->umemheadroom = atoi(argv[i]);
+			umemheadroom = atoi(argv[i]);
         }
         else if (!strcmp(argv[i], "-s")) {
             Queue->flags.periodicStats = TRUE;
@@ -1611,21 +1044,21 @@ ParseQueueArgs(
             if (++i >= argc) {
                 Usage();
             }
-            Queue->localAdapter.InitLocalByIP(argv[i]);
+            g_LocalAdapter->InitLocalByIP(argv[i]);
         }
         else if (!strcmp(argv[i], "-dstip")) {
             if (++i >= argc) {
                 Usage();
             }
-			dstipidx = i;
-			Queue->localAdapter.SetTarget(argv[i]);
+            dstipidx = i;
+            g_LocalAdapter->SetTarget(argv[i]);
         }
         else if (!strcmp(argv[i], "-dstmac")) {
             if (++i >= argc) {
                 Usage();
             }
             if (dstipidx > 0) {
-                Queue->localAdapter.SetTarget(argv[dstipidx], argv[i], 1234);
+                g_LocalAdapter->SetTarget(argv[dstipidx], argv[i], 1234);
             }
             else {
                 Usage();
@@ -1658,18 +1091,13 @@ ParseQueueArgs(
     }
 
     if (Queue->ringsize == 0) {
-        UINT64 RingSize64 = Queue->umemsize / Queue->umemchunksize;
-        ASSERT_FRE(RingSize64 <= MAXUINT32);
-        Queue->ringsize = (UINT32)RingSize64;
+		Queue->SetMemory(umemsize, umemchunksize);
     }
 
-    ASSERT_FRE(Queue->umemsize >= Queue->umemchunksize);
-    ASSERT_FRE(Queue->umemchunksize >= Queue->umemheadroom);
-    ASSERT_FRE(Queue->umemchunksize - Queue->umemheadroom >= Queue->txPatternLength);
 
     if (mode == ModeLat) {
         ASSERT_FRE(
-            Queue->umemchunksize - Queue->umemheadroom >= Queue->txPatternLength + sizeof(UINT64));
+            Queue->umemchunkSize - Queue->umemHeadroom >= Queue->txPatternLength + sizeof(UINT64));
 
         Queue->latSamples = (INT64 *)malloc(Queue->latSamplesCount * sizeof(*Queue->latSamples));
         ASSERT_FRE(Queue->latSamples != NULL);
@@ -1679,7 +1107,7 @@ ParseQueueArgs(
 
 VOID
 ParseThreadArgs(
-    MY_THREAD * Thread,
+    NetThread * Thread,
     INT argc,
     CHAR * *argv
 )
@@ -1751,7 +1179,8 @@ ParseThreadArgs(
         Usage();
     }
 
-    Thread->queues = (MY_QUEUE*)calloc(Thread->queueCount, sizeof(*Thread->queues));
+    //Thread->queues = (RssQueue*)calloc(Thread->queueCount, sizeof(*Thread->queues));
+    Thread->queues = (RssQueue*)new RssQueue[Thread->queueCount];// , sizeof(*Thread->queues));
     ASSERT_FRE(Thread->queues != NULL);
 
     INT qStart = -1;
@@ -1769,7 +1198,7 @@ ParseThreadArgs(
 
 VOID
 ParseArgs(
-    MY_THREAD * *ThreadsPtr,
+    NetThread * *ThreadsPtr,
     UINT32 * ThreadCountPtr,
     INT argc,
     CHAR * *argv
@@ -1777,7 +1206,7 @@ ParseArgs(
 {
     INT i = 1;
     UINT32 threadCount = 0;
-    MY_THREAD* threads = NULL;
+    NetThread* threads = NULL;
 
     if (argc < 4) {
         Usage();
@@ -1804,7 +1233,7 @@ ParseArgs(
     if (strcmp(argv[i++], "-i")) {
         Usage();
     }
-    ifindex = atoi(argv[i++]);
+    g_IfIndex = atoi(argv[i++]);
 
     while (i < argc) {
         if (!strcmp(argv[i], "-t")) {
@@ -1839,7 +1268,7 @@ ParseArgs(
         ++i;
     }
 
-    if (ifindex == -1) {
+    if (g_IfIndex == -1) {
         Usage();
     }
 
@@ -1847,7 +1276,7 @@ ParseArgs(
         Usage();
     }
 
-    threads = (MY_THREAD*)calloc(threadCount, sizeof(*threads));
+    threads = (NetThread*)calloc(threadCount, sizeof(*threads));
     ASSERT_FRE(threads != NULL);
 
     INT tStart = -1;
@@ -1868,7 +1297,7 @@ ParseArgs(
 
 HRESULT
 SetThreadAffinities(
-    MY_THREAD * Thread
+    NetThread * Thread
 )
 {
     if (Thread->nodeAffinity != DEFAULT_NODE_AFFINITY) {
@@ -1917,7 +1346,7 @@ DoThread(
     LPVOID lpThreadParameter
 )
 {
-    MY_THREAD* thread = (MY_THREAD*)lpThreadParameter;
+    NetThread* thread = (NetThread*)lpThreadParameter;
     HRESULT res;
 
     // Affinitize ASAP: memory allocations implicitly target the current
@@ -1963,12 +1392,13 @@ main(
     CHAR * *argv
 )
 {
-    MY_THREAD* threads;
+    NetThread* threads;
     UINT32 threadCount;
+	g_LocalAdapter = new AdapterMeta();
 
     ParseArgs(&threads, &threadCount, argc, argv);
 
-	periodicStatsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+    periodicStatsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
     ASSERT_FRE(periodicStatsEvent != NULL);
 
     ASSERT_FRE(SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE));
@@ -1985,9 +1415,10 @@ main(
     while (duration-- > 0) {
         WaitForSingleObject(periodicStatsEvent, 1000);
         for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
-            MY_THREAD* Thread = &threads[tIndex];
+            NetThread* Thread = &threads[tIndex];
             for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-                ProcessPeriodicStats(&Thread->queues[qIndex]);
+                //ProcessPeriodicStats(&Thread->queues[qIndex]);
+                Thread->queues[qIndex].ProcessPeriodicStats();
             }
         }
     }
@@ -1995,12 +1426,14 @@ main(
     WriteBooleanNoFence(&done, TRUE);
 
     for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
-        MY_THREAD* Thread = &threads[tIndex];
+        NetThread* Thread = &threads[tIndex];
         WaitForSingleObject(Thread->threadHandle, INFINITE);
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-            PrintFinalStats(&Thread->queues[qIndex]);
+            //PrintFinalStats(&Thread->queues[qIndex]);
+            Thread->queues[qIndex].PrintFinalStats();
         }
     }
+    delete g_LocalAdapter;
 
     return 0;
 }

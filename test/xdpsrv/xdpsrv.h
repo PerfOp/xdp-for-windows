@@ -2,6 +2,7 @@
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
 
+/*
 #define SHALLOW_STR_OF(x) #x
 #define STR_OF(x) SHALLOW_STR_OF(x)
 
@@ -27,37 +28,31 @@
 #define DEFAULT_LAT_COUNT 10000000
 #define DEFAULT_YIELD_COUNT 0
 
+#define DEFAULT_PAYLOAD_SIZE 64
 //huajianwang:eelat
 #define DEFAULT_FRAMES_PER_FILE 1
 #define DEFAULT_FILE_RATE 0
 #define DEFAULT_FRAME_RATE 10000
 //-huajianwang:eelat
-
-#define printf_error(...) \
-    fprintf(stderr, __VA_ARGS__)
-
-#define printf_verbose(format, ...) \
-    if (verbose) { LARGE_INTEGER Qpc; QueryPerformanceCounter(&Qpc); printf("Qpc=%llu " format, Qpc.QuadPart, __VA_ARGS__); }
-
-#define ABORT(...) \
-    printf_error(__VA_ARGS__); exit(1)
-
-#define ASSERT_FRE(expr) \
-    if (!(expr)) { ABORT("(%s) failed line %d\n", #expr, __LINE__);}
-
-#if DBG
-#define VERIFY(expr) assert(expr)
-#else
-#define VERIFY(expr) (expr)
-#endif
+*/
 
 #define Usage() PrintUsage(__LINE__)
 
-#define WAIT_DRIVER_TIMEOUT_MS 1050
-#define STATS_ARRAY_SIZE 60
+#include "internal_utils.h"
+#include "rss_queue.h"
 
-INT64
-QpcToUs64(
-    INT64 Qpc,
-    INT64 QpcFrequency
-);
+
+typedef struct {
+    HANDLE threadHandle;
+    HANDLE readyEvent;
+    LONG nodeAffinity;
+    LONG group;
+    LONG idealCpu;
+    UINT32 yieldCount;
+    DWORD_PTR cpuAffinity;
+    BOOLEAN wait;
+
+    UINT32 queueCount;
+    RssQueue* queues;
+} NetThread;
+
