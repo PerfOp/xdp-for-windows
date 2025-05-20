@@ -1,6 +1,7 @@
 #include "rss_queue.h"
 #include "netport.h"
 #include "internal_utils.h"
+#include "HighPerfTimer.h"
 
 MODE mode;
 
@@ -10,26 +11,10 @@ AdapterMeta* g_LocalAdapter=NULL;
 
 BOOLEAN output_stdout = FALSE;
 
-UINT32
-RingPairReserve(
-    _In_ XSK_RING* ConsumerRing,
-    _Out_ UINT32* ConsumerIndex,
-    _In_ XSK_RING* ProducerRing,
-    _Out_ UINT32* ProducerIndex,
-    _In_ UINT32 MaxCount
-)
-{
-    MaxCount = XskRingConsumerReserve(ConsumerRing, MaxCount, ConsumerIndex);
-    MaxCount = XskRingProducerReserve(ProducerRing, MaxCount, ProducerIndex);
-    return MaxCount;
-}
-
-VOID
-PrintRing(
+void PrintRing(
     CHAR* Name,
     XSK_RING_INFO RingInfo
-)
-{
+){
     if (RingInfo.Size != 0) {
         printf_verbose(
             "%s\tring:\n\tva=0x%p\n\tsize=%d\n\tdescriptorsOff=%d\n\t"
@@ -46,15 +31,26 @@ PrintRing(
     }
 }
 
-VOID
-PrintRingInfo(
+void PrintRingInfo(
     XSK_RING_INFO_SET InfoSet
-)
-{
+){
     PrintRing("rx", InfoSet.Rx);
     PrintRing("tx", InfoSet.Tx);
     PrintRing("fill", InfoSet.Fill);
     PrintRing("comp", InfoSet.Completion);
+}
+
+
+UINT32 RingPairReserve(
+    _In_ XSK_RING* ConsumerRing,
+    _Out_ UINT32* ConsumerIndex,
+    _In_ XSK_RING* ProducerRing,
+    _Out_ UINT32* ProducerIndex,
+    _In_ UINT32 MaxCount
+){
+    MaxCount = XskRingConsumerReserve(ConsumerRing, MaxCount, ConsumerIndex);
+    MaxCount = XskRingProducerReserve(ProducerRing, MaxCount, ProducerIndex);
+    return MaxCount;
 }
 
 void RssQueue::SetMemory(UINT64 umemsize, ULONG umemchunksize) {
@@ -62,7 +58,7 @@ void RssQueue::SetMemory(UINT64 umemsize, ULONG umemchunksize) {
 	ASSERT_FRE(RingSize64 <= MAXUINT32);
 	this->umemSize = umemsize;
 	this->umemchunkSize = umemchunksize;
-	this->ringsize = (UINT32)RingSize64;
+	this->ringSize = (UINT32)RingSize64;
 
 	ASSERT_FRE(this->umemSize >= this->umemchunkSize);
 	ASSERT_FRE(this->umemchunkSize >= this->umemHeadroom);
@@ -90,47 +86,51 @@ BOOL RssQueue::initSharedMemory() {
 	return TRUE;
 };
  
-BOOL RssQueue::InitDataPath(INT ifindex) {
+BOOL RssQueue::initDataPath(INT ifindex) {
 	HRESULT res;
 	UINT32 bindFlags = 0;
-	
-    this->initSharedMemory();
-	
+
+    // 1. Register umem memory
     res =
 		XskSetSockopt(
 			this->sock, XSK_SOCKOPT_UMEM_REG, &this->umemReg,
 			sizeof(this->umemReg));
 	ASSERT_FRE(res == S_OK);
 
-	printf_verbose("configuring fill ring with size %d\n", this->ringsize);
+    // 2. Register fillring's size on InBound path
+	printf_verbose("configuring fill ring with size %d\n", this->ringSize);
 	res =
 		XskSetSockopt(
-			this->sock, XSK_SOCKOPT_RX_FILL_RING_SIZE, &this->ringsize,
-            sizeof(this->ringsize));
+			this->sock, XSK_SOCKOPT_RX_FILL_RING_SIZE, &this->ringSize,
+            sizeof(this->ringSize));
     ASSERT_FRE(res == S_OK);
 
-    printf_verbose("configuring completion ring with size %d\n", this->ringsize);
+    // 3. Register compring's size on OutBound path
+    printf_verbose("configuring completion ring with size %d\n", this->ringSize);
     res =
         XskSetSockopt(
-            this->sock, XSK_SOCKOPT_TX_COMPLETION_RING_SIZE, &this->ringsize,
-            sizeof(this->ringsize));
+            this->sock, XSK_SOCKOPT_TX_COMPLETION_RING_SIZE, &this->ringSize,
+            sizeof(this->ringSize));
     ASSERT_FRE(res == S_OK);
 
+	// 4. Register rxring's size on InBound path
     if (this->flags.rx) {
-        printf_verbose("configuring rx ring with size %d\n", this->ringsize);
+        printf_verbose("configuring rx ring with size %d\n", this->ringSize);
         res =
             XskSetSockopt(
-                this->sock, XSK_SOCKOPT_RX_RING_SIZE, &this->ringsize,
-                sizeof(this->ringsize));
+                this->sock, XSK_SOCKOPT_RX_RING_SIZE, &this->ringSize,
+                sizeof(this->ringSize));
         ASSERT_FRE(res == S_OK);
         bindFlags |= XSK_BIND_FLAG_RX;
     }
+	
+    // 5. Register txring's size on OutBound path
     if (this->flags.tx) {
-        printf_verbose("configuring tx ring with size %d\n", this->ringsize);
+        printf_verbose("configuring tx ring with size %d\n", this->ringSize);
         res =
             XskSetSockopt(
-                this->sock, XSK_SOCKOPT_TX_RING_SIZE, &this->ringsize,
-                sizeof(this->ringsize));
+                this->sock, XSK_SOCKOPT_TX_RING_SIZE, &this->ringSize,
+                sizeof(this->ringSize));
         ASSERT_FRE(res == S_OK);
         bindFlags |= XSK_BIND_FLAG_TX;
     }
@@ -168,15 +168,18 @@ BOOL RssQueue::InitDataPath(INT ifindex) {
         ASSERT_FRE(res == S_OK);
     }
 
+    // 6. Bind the sock with queueId
 	printf_verbose(
 		"binding sock to ifindex %d queueId %d flags 0x%x\n", ifindex, this->queueId, bindFlags);
 	res = XskBind(this->sock, ifindex, this->queueId, (XSK_BIND_FLAGS)bindFlags);
 	ASSERT_FRE(res == S_OK);
 
+    // 7.  Activate the sock
 	printf_verbose("activating sock\n");
 	res = XskActivate(this->sock, (XSK_ACTIVATE_FLAGS)0);
 	ASSERT_FRE(res == S_OK);
 
+    // 8. Get the ring infoSet to reset
 	printf_verbose("XSK_SOCKOPT_RING_INFO\n");
 	XSK_RING_INFO_SET infoSet = { 0 };
 	UINT32 ringInfoSize = sizeof(infoSet);
@@ -185,6 +188,7 @@ BOOL RssQueue::InitDataPath(INT ifindex) {
 	ASSERT_FRE(ringInfoSize == sizeof(infoSet));
 	PrintRingInfo(infoSet);
 
+    // 9. Initialize the ring.
 	XskRingInitialize(&this->fillRing, &infoSet.Fill);
 	XskRingInitialize(&this->compRing, &infoSet.Completion);
 
@@ -200,11 +204,10 @@ BOOL RssQueue::InitDataPath(INT ifindex) {
 			this->sock, XSK_SOCKOPT_POLL_MODE, &this->pollMode, sizeof(this->pollMode));
 	ASSERT_FRE(res == S_OK);
 
-	this->initRing();
 	return TRUE;
 };
 
-BOOL RssQueue::AttachXdpProgram(INT ifindex) {
+BOOL RssQueue::attachXdpProgram(INT ifindex) {
 	//XDP_RULE rule = { 0 };
     XDP_RULE rule;
     memset(&rule, 0, sizeof(XDP_RULE));
@@ -291,7 +294,7 @@ BOOL RssQueue::initRing() {
     char refBuffer[] = "123456789abc7c1e523ef5d808004500005c000000000111a2b00a0201720a02016c10e104d20048d2c900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\0";
     UINT32 refSize = (UINT32)strlen(refBuffer);
     BYTE* decodedMtu = new BYTE[refSize / 2];
-    memset((VOID*)decodedMtu, 0, refSize/2);
+    memset((void*)decodedMtu, 0, refSize/2);
     // Assert::AreEqual(kPacketSize, refSize / 2);
     GetDescriptorPattern(decodedMtu, refSize, refBuffer);
 
@@ -338,8 +341,8 @@ BOOL RssQueue::initRing() {
  
 INT
 LatCmp(
-    const VOID * A,
-    const VOID * B
+    const void * A,
+    const void * B
 )
 {
     const UINT64* a = (const UINT64*)A;
@@ -347,11 +350,7 @@ LatCmp(
     return (*a > *b) - (*a < *b);
 }
 
-VOID
-RssQueue::ProcessPeriodicStats(
-    //RssQueue * Queue
-)
-{
+void RssQueue::ProcessPeriodicStats(){
     UINT64 currentTick = GetTickCount64();
     UINT64 tickDiff = currentTick - this->lastTick;
     UINT64 packetcount;
@@ -422,7 +421,7 @@ RssQueue::ProcessPeriodicStats(
     this->lastTick = currentTick;
 }
 
-VOID
+void
 RssQueue::PrintFinalLatStats()
 {
     LARGE_INTEGER FreqQpc;
@@ -447,7 +446,7 @@ RssQueue::PrintFinalLatStats()
         this->latSamples[(UINT32)(this->latIndex * 0.999999)]);
 }
 
-VOID
+void
 RssQueue::PrintFinalStats()
 {
     ULONG numEntries = min(this->currStatsArrayIdx, STATS_ARRAY_SIZE);
@@ -517,7 +516,7 @@ RssQueue::PrintFinalStats()
     }
 }
 
-VOID
+void
 RssQueue::writeTxPackets(
     //RssQueue * Queue,
     UINT32 FreeConsumerIndex,
@@ -530,7 +529,8 @@ RssQueue::writeTxPackets(
         XSK_BUFFER_DESCRIPTOR* txDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&this->txRing, TxProducerIndex++);
 
         txDesc->Address.BaseAddress = *freeDesc;
-        assert(Queue->umemReg.Headroom <= MAXUINT16);
+        //assert(Queue->umemReg.Headroom <= MAXUINT16);
+        assert(this->umemReg.Headroom <= MAXUINT16);
         txDesc->Address.Offset = (UINT16)this->umemReg.Headroom;
         txDesc->Length = this->txiosize;
         //
@@ -541,7 +541,7 @@ RssQueue::writeTxPackets(
     }
 }
 
-VOID
+void
 RssQueue::notifyDriver(
     XSK_NOTIFY_FLAGS DirectionFlags
 )
@@ -581,7 +581,7 @@ RssQueue::notifyDriver(
     }
 }
 
-VOID
+void
 RssQueue::readCompletionPackets(
     UINT32 CompConsumerIndex,
     UINT32 FreeProducerIndex,
@@ -660,7 +660,7 @@ RssQueue::ProcessTx(
     return processed;
 }
 
-VOID
+void
 RssQueue::readRxPackets(
     UINT32 RxConsumerIndex,
     UINT32 FreeProducerIndex,
@@ -683,7 +683,7 @@ RssQueue::readRxPackets(
     }
 }
 
-VOID
+void
 RssQueue::writeFillPackets(
     UINT32 FreeConsumerIndex,
     UINT32 FillProducerIndex,
@@ -1025,10 +1025,10 @@ UINT32 RssQueue::IssueRequest() {
     // Fill up the RX fill ring. Once this initial fill is performed, the
     // RX fill ring and RX ring operate in a closed loop.
     //
-    available = XskRingProducerReserve(&this->fillRing, this->ringsize, &producerIndex);
-    ASSERT_FRE(available == this->ringsize);
-    available = XskRingConsumerReserve(&this->freeRxRing, this->ringsize, &consumerIndex);
-    ASSERT_FRE(available == this->ringsize);
+    available = XskRingProducerReserve(&this->fillRing, this->ringSize, &producerIndex);
+    ASSERT_FRE(available == this->ringSize);
+    available = XskRingConsumerReserve(&this->freeRxRing, this->ringSize, &consumerIndex);
+    ASSERT_FRE(available == this->ringSize);
     //WriteFillPackets(queue, consumerIndex, producerIndex, available);
     this->writeFillPackets(consumerIndex, producerIndex, available);
     XskRingConsumerRelease(&this->freeRxRing, available);
@@ -1036,3 +1036,26 @@ UINT32 RssQueue::IssueRequest() {
 
     return available;
 }
+
+void RssQueue::SetupSock(INT IfIndex){
+    HRESULT res;
+    //UINT32 bindFlags = 0;
+
+    printf_verbose("creating sock\n");
+    res = XskCreate(&this->sock);
+    if (res != S_OK) {
+        ABORT("err: XskCreate returned %d\n", res);
+    }
+
+    printf_verbose("XDP_UMEM_REG\n");
+
+    this->initSharedMemory();
+	
+	this->initDataPath(IfIndex);
+
+	this->initRing();
+
+    this->attachXdpProgram(IfIndex);
+}
+
+

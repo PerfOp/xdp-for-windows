@@ -9,11 +9,13 @@
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\xdp.cpp.props" />
   <ItemGroup>
+    <ClCompile Include="HighPerfTimer.cpp" />
     <ClCompile Include="internal_utils.cpp" />
     <ClCompile Include="rss_queue.cpp" />
     <ClCompile Include="xdpsrv.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="HighPerfTimer.h" />
     <ClInclude Include="internal_utils.h" />
     <ClInclude Include="rss_queue.h" />
     <ClInclude Include="xdpsrv.h" />

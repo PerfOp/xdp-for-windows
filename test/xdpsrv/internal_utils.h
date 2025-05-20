@@ -40,10 +40,11 @@ extern BOOLEAN verbose;
 extern BOOLEAN largePages;
 extern UINT16 udpDestPort;
 
-
+/*
 INT64
 QpcToUs64(
     INT64 Qpc,
     INT64 QpcFrequency
 );
+*/
 void PrintPacketMeta(_In_ void* buffer);

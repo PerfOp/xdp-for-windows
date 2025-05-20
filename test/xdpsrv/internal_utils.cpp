@@ -6,6 +6,7 @@ BOOLEAN verbose = FALSE;
 BOOLEAN largePages = FALSE;
 UINT16 udpDestPort = DEFAULT_UDP_DEST_PORT;
 
+/*
 INT64
 QpcToUs64(
     INT64 Qpc,
@@ -27,7 +28,7 @@ QpcToUs64(
         ((High / QpcFrequency) << 32) +
         ((Low + ((High % QpcFrequency) << 32)) / QpcFrequency);
 }
-
+*/
 
 void PrintPacketMeta(_In_ void* buffer) {
     ETHERNET_HEADER* EthernetHeader = (ETHERNET_HEADER*)buffer;

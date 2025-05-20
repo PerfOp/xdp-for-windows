@@ -7,18 +7,12 @@
 #include "internal_utils.h"
 #include "xdpsrv.h"
 #include "netport.h"
+#include "HighPerfTimer.h"
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
     
-//AdapterMeta g_LocalAdapter;
-
-//UINT16 udpDestPort = DEFAULT_UDP_DEST_PORT;
 ULONG duration = DEFAULT_DURATION;
-//BOOLEAN verbose = FALSE;
-//BOOLEAN output_stdout = FALSE;
-BOOLEAN done = FALSE;
-//BOOLEAN largePages = FALSE;
-//MODE mode;
+BOOLEAN processDone = FALSE;
 CHAR* modestr;
 HANDLE periodicStatsEvent;
 
@@ -108,63 +102,6 @@ CHAR* HELP =
 "   xskbench.exe lat -i 6 -t -q -id 0 -ring_size 8\n"
 ;
 
-/*
-UINT32
-RingPairReserve(
-    _In_ XSK_RING* ConsumerRing,
-    _Out_ UINT32* ConsumerIndex,
-    _In_ XSK_RING* ProducerRing,
-    _Out_ UINT32* ProducerIndex,
-    _In_ UINT32 MaxCount
-)
-{
-    MaxCount = XskRingConsumerReserve(ConsumerRing, MaxCount, ConsumerIndex);
-    MaxCount = XskRingProducerReserve(ProducerRing, MaxCount, ProducerIndex);
-    return MaxCount;
-}
-VOID
-AttachXdpProgram(
-    RssQueue* Queue
-)
-{
-    //XDP_RULE rule = { 0 };
-    XDP_RULE rule;
-    memset(&rule, 0, sizeof(XDP_RULE));
-
-    UINT32 flags = 0;
-    XDP_HOOK_ID hookId;
-    UINT32 hookSize = sizeof(hookId);
-    HRESULT res;
-
-    if (!Queue->flags.rx) {
-        return;
-    }
-
-    rule.Match = udpDestPort == 0 ? XDP_MATCH_ALL : XDP_MATCH_UDP_DST;
-    rule.Pattern.Port = _byteswap_ushort(udpDestPort);
-    rule.Action = XDP_PROGRAM_ACTION_REDIRECT;
-    rule.Redirect.TargetType = XDP_REDIRECT_TARGET_TYPE_XSK;
-    rule.Redirect.Target = Queue->sock;
-
-    if (Queue->xdpMode == XdpModeGeneric) {
-        flags |= XDP_CREATE_PROGRAM_FLAG_GENERIC;
-    }
-    else if (Queue->xdpMode == XdpModeNative) {
-        flags |= XDP_CREATE_PROGRAM_FLAG_NATIVE;
-    }
-
-    res = XskGetSockopt(Queue->sock, XSK_SOCKOPT_RX_HOOK_ID, &hookId, &hookSize);
-    ASSERT_FRE(SUCCEEDED(res));
-    ASSERT_FRE(hookSize == sizeof(hookId));
-
-    res =
-        XdpCreateProgram(
-            g_IfIndex, &hookId, Queue->queueId, (XDP_CREATE_PROGRAM_FLAGS)flags, &rule, 1, &Queue->rxProgram);
-    if (FAILED(res)) {
-        ABORT("XdpCreateProgram failed: %d\n", res);
-    }
-}
-*/
 VOID
 EnableLargePages(
     VOID
@@ -241,28 +178,6 @@ ParseUInt32A(
 }
 
 VOID
-SetupSock(
-    INT IfIndex,
-    RssQueue * Queue
-)
-{
-    HRESULT res;
-    //UINT32 bindFlags = 0;
-
-    printf_verbose("creating sock\n");
-    res = XskCreate(&Queue->sock);
-    if (res != S_OK) {
-        ABORT("err: XskCreate returned %d\n", res);
-    }
-
-    printf_verbose("XDP_UMEM_REG\n");
-
-	Queue->InitDataPath(IfIndex);
-
-    Queue->AttachXdpProgram(IfIndex);
-}
-
-VOID
 DoRxMode(
     NetThread * Thread
 )
@@ -271,14 +186,15 @@ DoRxMode(
         RssQueue* queue = &Thread->queues[qIndex];
 
         queue->flags.rx = TRUE;
-        SetupSock(g_IfIndex, queue);
+        //SetupSock(g_IfIndex, queue);
+        queue->SetupSock(g_IfIndex);
         queue->lastTick = GetTickCount64();
     }
 
     printf("Receiving...\n");
     SetEvent(Thread->readyEvent);
 
-    while (!ReadBooleanNoFence(&done)) {
+    while (!ReadBooleanNoFence(&processDone)) {
         BOOLEAN Processed = FALSE;
 
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
@@ -303,14 +219,15 @@ DoTxMode(
         RssQueue* queue = &Thread->queues[qIndex];
 
         queue->flags.tx = TRUE;
-        SetupSock(g_IfIndex, queue);
+        //SetupSock(g_IfIndex, queue);
+        queue->SetupSock(g_IfIndex);
         queue->lastTick = GetTickCount64();
     }
 
     printf("Sending...\n");
     SetEvent(Thread->readyEvent);
 
-    while (!ReadBooleanNoFence(&done)) {
+    while (!ReadBooleanNoFence(&processDone)) {
         BOOLEAN Processed = FALSE;
 
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
@@ -337,14 +254,15 @@ DoFwdMode(
 
         queue->flags.rx = TRUE;
         queue->flags.tx = TRUE;
-        SetupSock(g_IfIndex, queue);
+        //SetupSock(g_IfIndex, queue);
+        queue->SetupSock(g_IfIndex);
         queue->lastTick = GetTickCount64();
     }
 
     printf("Forwarding...\n");
     SetEvent(Thread->readyEvent);
 
-    while (!ReadBooleanNoFence(&done)) {
+    while (!ReadBooleanNoFence(&processDone)) {
         BOOLEAN Processed = FALSE;
 
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
@@ -371,7 +289,8 @@ DoLatMode(
 
         queue->flags.rx = TRUE;
         queue->flags.tx = TRUE;
-        SetupSock(g_IfIndex, queue);
+        //SetupSock(g_IfIndex, queue);
+        queue->SetupSock(g_IfIndex);
 
         queue->IssueRequest();
     }
@@ -379,7 +298,7 @@ DoLatMode(
     printf("Probing latency...\n");
     SetEvent(Thread->readyEvent);
 
-    while (!ReadBooleanNoFence(&done)) {
+    while (!ReadBooleanNoFence(&processDone)) {
         BOOLEAN Processed = FALSE;
 
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
@@ -441,7 +360,7 @@ ParseQueueArgs(
             if (++i >= argc) {
                 Usage();
             }
-            Queue->ringsize = atoi(argv[i]);
+            Queue->ringSize = atoi(argv[i]);
         }
         else if (!strcmp(argv[i], "-c")) {
             if (++i >= argc) {
@@ -580,7 +499,7 @@ ParseQueueArgs(
         Usage();
     }
 
-    if (Queue->ringsize == 0) {
+    if (Queue->ringSize == 0) {
 		Queue->SetMemory(umemsize, umemchunksize);
     }
 
@@ -913,7 +832,7 @@ main(
         }
     }
 
-    WriteBooleanNoFence(&done, TRUE);
+    WriteBooleanNoFence(&processDone, TRUE);
 
     for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
         NetThread* Thread = &threads[tIndex];

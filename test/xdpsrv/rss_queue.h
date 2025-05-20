@@ -58,12 +58,12 @@ typedef enum {
     XdpModeNative,
 } XDP_MODE;
 
-VOID
+void
 PrintRing(
     CHAR* Name,
     XSK_RING_INFO RingInfo
 );
-VOID
+void
 PrintRingInfo(
     XSK_RING_INFO_SET InfoSet
 );
@@ -92,7 +92,7 @@ public:
     ULONG umemHeadroom;
     ULONG txiosize;
     ULONG iobatchsize;
-    UINT32 ringsize;
+    UINT32 ringSize;
     UCHAR* txPattern;
     UINT32 txPatternLength;
     INT64* latSamples;
@@ -101,8 +101,6 @@ public:
     XSK_POLL_MODE pollMode;
 
     ULONG payloadsize;
-
-    //AdapterMeta localAdapter;
 
     struct {
         BOOLEAN periodicStats : 1;
@@ -157,34 +155,33 @@ public:
         this->payloadsize = DEFAULT_PAYLOAD_SIZE;
     }
 private:
-    VOID notifyDriver(XSK_NOTIFY_FLAGS DirectionFlags);
-    VOID writeTxPackets(
+    void notifyDriver(XSK_NOTIFY_FLAGS DirectionFlags);
+    void writeTxPackets(
         UINT32 FreeConsumerIndex,
         UINT32 TxProducerIndex,
         UINT32 Count);
-	VOID readCompletionPackets(
+	void readCompletionPackets(
 		UINT32 CompConsumerIndex,
 		UINT32 FreeProducerIndex,
 		UINT32 Count);
-	VOID readRxPackets(
+	void readRxPackets(
 		UINT32 RxConsumerIndex,
 		UINT32 FreeProducerIndex,
 		UINT32 Count);
-	VOID writeFillPackets(
+	void writeFillPackets(
 		UINT32 FreeConsumerIndex,
 		UINT32 FillProducerIndex,
 		UINT32 Count
 	);
     BOOL initSharedMemory();
     BOOL initRing();
+    BOOL initDataPath(INT ifindex) ;
+    BOOL attachXdpProgram(INT ifindex);
 public:
 
     void SetMemory(UINT64 umemsize, ULONG umemchunksize) ;
-
-    BOOL InitDataPath(INT ifindex) ;
-    BOOL AttachXdpProgram(INT ifindex);
-
-
+    // Initialization for socket
+	void SetupSock(INT IfIndex);
 
     // Functions for running modes.
 	UINT32 ProcessTx(BOOLEAN Wait);
@@ -193,9 +190,9 @@ public:
     UINT32 ProcessLat(BOOLEAN Wait);
 
     // Helpers for stats
-    VOID PrintFinalStats();
-    VOID PrintFinalLatStats();
-    VOID ProcessPeriodicStats() ;
+    void PrintFinalStats();
+    void PrintFinalLatStats();
+    void ProcessPeriodicStats() ;
 
 	UINT32 IssueRequest();
 };
