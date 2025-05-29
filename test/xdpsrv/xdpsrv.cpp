@@ -74,7 +74,8 @@ CHAR* HELP =
 "   -tx_inspect        Inspect RX and FWD frames from the local TX path\n"
 "                      Default: off\n"
 "   -dstip             Destination: host ip \n"
-"   -dstmac            Destination: host mac, Please use -dstip to assign destination IP before -dstmac \n"
+"   -dstport           Destination: host port, Please use -dstip to assign destination IP before -dstmac \n"
+"   -dstmac            Destination: host mac, not necessary, should check with the switch. \n"
 "   -tx_payload        Pattern for the payload to TX, in hexadecimal.\n"
 "   -tx_pattern        Pattern for the leading bytes of TX, in hexadecimal.\n"
 "                      The pktcmd.exe tool outputs hexadecimal headers. Any\n"
@@ -456,7 +457,19 @@ ParseQueueArgs(
                 Usage();
             }
             dstipidx = i;
-            g_LocalAdapter->SetTarget(argv[i], "12-34-56-78-9A-BC", 4567);
+            g_LocalAdapter->SetTarget(argv[i], DEFAULT_DST_MAC_ADDR, DEFAULT_DST_PORT);
+        }
+        else if (!strcmp(argv[i], "-dstport")) {
+            if (++i >= argc) {
+                Usage();
+            }
+			UINT16 udstport = (UINT16) atoi(argv[i]);
+            if (dstipidx > 0) {
+                g_LocalAdapter->SetTarget(argv[dstipidx], DEFAULT_DST_MAC_ADDR, udstport);
+            }
+            else {
+                Usage();
+            }
         }
         else if (!strcmp(argv[i], "-dstmac")) {
             if (++i >= argc) {
