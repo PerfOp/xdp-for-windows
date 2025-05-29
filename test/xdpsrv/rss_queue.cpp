@@ -285,57 +285,47 @@ BOOL RssQueue::initFreeRing() {
     PrintRing("free", freeRxRingInfo);
 
     //const UINT32 kPacketSize = 64;
-    UCHAR* payload = new UCHAR[this->payloadsize];
-    memset(payload, 0, this->payloadsize);
-    UINT32 genPacketSize;
-    BYTE MtuBuffer[2048];
-    memset(MtuBuffer, 0, sizeof(MtuBuffer));
-    /*
-    char refBuffer[] = "123456789abc7c1e523ef5d808004500005c000000000111a2b00a0201720a02016c10e104d20048d2c900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\0";
-    UINT32 refSize = (UINT32)strlen(refBuffer);
-    BYTE* decodedMtu = new BYTE[refSize / 2];
-    memset((void*)decodedMtu, 0, refSize/2);
-    // Assert::AreEqual(kPacketSize, refSize / 2);
-    GetDescriptorPattern(decodedMtu, refSize, refBuffer);
+    if (this->txPayload != NULL) {
+		UINT32 genPacketSize;
+		BYTE MtuBuffer[2048];
+		memset(MtuBuffer, 0, sizeof(MtuBuffer));
+        g_LocalAdapter->FillMTUBufferWithPayload(this->txPayload, this->payloadsize, genPacketSize, MtuBuffer, DEFAULT_UDP_TTL);
 
-    */
-    /*
-    AdapterMeta localAdapter;
-    localAdapter.SetTarget("10.2.1.108", "12-34-56-78-9a-bc", 1234);
-    localAdapter.AssingLocal("10.2.1.114", "7C-1E-52-3E-F5-D8", 4321);
-    */
-    g_LocalAdapter->FillMTUBufferWithPayload(payload, this->payloadsize, genPacketSize, MtuBuffer);
-    /*
-    for (UINT32 i = 0; i < genPacketSize; i++) {
-        if (MtuBuffer[i] != decodedMtu[i]) {
-            printf("Mismatch at index %d: expected %02x, got %02x\n", i, decodedMtu[i], MtuBuffer[i]);
-        }
-    }
-    */
-    
-    //Queue->localAdapter.FillMTUBufferWithPayload(payload, Queue->txPatternLength, packetSize, MtuBuffer);
-    
-    //delete[] decodedMtu;
-    delete[] payload;
-    
-    UINT64 desc = 0;
-    for (UINT32 i = 0; i < numDescriptors; i++) {
-        UINT64* Descriptor = (UINT64*)XskRingGetElement(&this->freeRxRing, i);
-        *Descriptor = desc;
+        UINT64 desc = 0;
+        for (UINT32 i = 0; i < numDescriptors; i++) {
+            UINT64* Descriptor = (UINT64*)XskRingGetElement(&this->freeRxRing, i);
+            *Descriptor = desc;
 
-        if (mode == ModeTx || mode == ModeLat) {
-            memcpy(
-                (UCHAR*)this->umemReg.Address + desc + this->umemHeadroom, 
-                //Queue->txPattern,
-                MtuBuffer,
-                //Queue->txPatternLength);
-                genPacketSize);
+            if (mode == ModeTx || mode == ModeLat) {
+                memcpy(
+                    (UCHAR*)this->umemReg.Address + desc + this->umemHeadroom,
+                    MtuBuffer,
+                    genPacketSize);
+            }
+
+            desc += this->umemchunkSize;
         }
 
-        desc += this->umemchunkSize;
+        XskRingProducerSubmit(&this->freeRxRing, numDescriptors);
     }
+    else {
+        UINT64 desc = 0;
+        for (UINT32 i = 0; i < numDescriptors; i++) {
+            UINT64* Descriptor = (UINT64*)XskRingGetElement(&this->freeRxRing, i);
+            *Descriptor = desc;
 
-    XskRingProducerSubmit(&this->freeRxRing, numDescriptors);
+            if (mode == ModeTx || mode == ModeLat) {
+                memcpy(
+                    (UCHAR*)this->umemReg.Address + desc + this->umemHeadroom,
+                    this->txPattern,
+                    this->txPatternLength);
+            }
+
+            desc += this->umemchunkSize;
+        }
+
+        XskRingProducerSubmit(&this->freeRxRing, numDescriptors);
+    }
     return TRUE;
 }
  

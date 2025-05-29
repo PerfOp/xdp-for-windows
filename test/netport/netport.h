@@ -144,7 +144,8 @@ extern "C" {
             _In_ CONST VOID* IpDestination,
             _In_ CONST VOID* IpSource,
             _In_ UINT16 PortDestination,
-            _In_ UINT16 PortSource
+            _In_ UINT16 PortSource,
+            _In_ const UINT8 ttl
         )
     {
         CONST UINT32 TotalLength = UDP_HEADER_BACKFILL(AddressFamily) + PayloadLength;
@@ -173,7 +174,7 @@ extern "C" {
             IpHeader->Version = IPV4_VERSION;
             IpHeader->HeaderLength = sizeof(*IpHeader) >> 2;
             IpHeader->TotalLength = htons(sizeof(*IpHeader) + UdpLength);
-            IpHeader->TimeToLive = 1;
+            IpHeader->TimeToLive = ttl;
             IpHeader->Protocol = IPPROTO_UDP;
             AddressLength = sizeof(IN_ADDR);
             RtlCopyMemory(&IpHeader->SourceAddress, IpSource, AddressLength);
@@ -188,7 +189,7 @@ extern "C" {
             IpHeader->VersionClassFlow = IPV6_VERSION;
             IpHeader->PayloadLength = htons(UdpLength);
             IpHeader->NextHeader = IPPROTO_UDP;
-            IpHeader->HopLimit = 1;
+            IpHeader->HopLimit = ttl;
             AddressLength = sizeof(IN6_ADDR);
             RtlCopyMemory(&IpHeader->SourceAddress, IpSource, AddressLength);
             RtlCopyMemory(&IpHeader->DestinationAddress, IpDestination, AddressLength);
@@ -297,11 +298,15 @@ class AdapterMeta {
 #endif
     public:
 		// Apis for set src and dst ip and mac
+        UINT32 GetIfindex() {
+            return ifindex;
+        }
         BOOL InitLocalByIP(const char* ip, const UINT16 port = 4321);
+        BOOL InitLocalByIdx(const UINT32 idx, const UINT16 port = 4321);
         BOOL SetTarget(const char* ipaddr, const char* ethaddr=NULL, UINT16 port=1234);
         BOOL AssingLocal(const char* ipaddr, const char* ethaddr, UINT16 port);
 
-        BOOL FillMTUBufferWithPayload(const UCHAR* payload, UINT32 payloadsize, UINT32& packetsize, BYTE* mtuBuffer);
+        BOOL FillMTUBufferWithPayload(const UCHAR* payload, UINT32 payloadsize, UINT32& packetsize, BYTE* mtuBuffer, const UINT8 ttl=1);
 
     private:
 		// Apis for transfering the string ip/mac to inet_addr and ETHERNET_ADDRESS for generating the udp packet
@@ -314,9 +319,10 @@ class AdapterMeta {
         BOOL debug_output();
 };
 
-VOID* InitUdpPacket(CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort, UINT32 PayloadLength, UINT32& bufferLength) ;
+VOID* InitUdpPacket(CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort, UINT32 PayloadLength, UINT32& bufferLength, const UINT8 ttl=1) ;
 
 void bytes_to_hex_string(const uint8_t* bytes, size_t length, char* out_buffer, size_t buffer_size);
+int hex_string_to_bytes(const char* hex, unsigned char* out, size_t max_len);
 
 
 #ifdef __cplusplus

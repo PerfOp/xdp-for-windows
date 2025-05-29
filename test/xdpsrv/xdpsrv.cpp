@@ -18,6 +18,8 @@ HANDLE periodicStatsEvent;
 
 CHAR* HELP =
 "xskbench.exe <rx|tx|fwd|lat> -i <ifindex> [OPTIONS] <-t THREAD_PARAMS> [-t THREAD_PARAMS...] \n"
+"or\n"
+"xskbench.exe <rx|tx|fwd|lat> -srcip <localip> [OPTIONS] <-t THREAD_PARAMS> [-t THREAD_PARAMS...] \n"
 "\n"
 "THREAD_PARAMS: \n"
 "   -q <QUEUE_PARAMS> [-q QUEUE_PARAMS...] \n"
@@ -71,9 +73,9 @@ CHAR* HELP =
 "                      Default: off\n"
 "   -tx_inspect        Inspect RX and FWD frames from the local TX path\n"
 "                      Default: off\n"
-"   -srcip             Source: host ip \n"
 "   -dstip             Destination: host ip \n"
 "   -dstmac            Destination: host mac, Please use -dstip to assign destination IP before -dstmac \n"
+"   -tx_payload        Pattern for the payload to TX, in hexadecimal.\n"
 "   -tx_pattern        Pattern for the leading bytes of TX, in hexadecimal.\n"
 "                      The pktcmd.exe tool outputs hexadecimal headers. Any\n"
 "                      trailing bytes in the XSK buffer are set to zero\n"
@@ -449,25 +451,19 @@ ParseQueueArgs(
         else if (!strcmp(argv[i], "-tx_inspect")) {
             Queue->flags.txInspect = TRUE;
         }
-        else if (!strcmp(argv[i], "-srcip")) {
-            if (++i >= argc) {
-                Usage();
-            }
-            g_LocalAdapter->InitLocalByIP(argv[i]);
-        }
         else if (!strcmp(argv[i], "-dstip")) {
             if (++i >= argc) {
                 Usage();
             }
             dstipidx = i;
-            g_LocalAdapter->SetTarget(argv[i]);
+            g_LocalAdapter->SetTarget(argv[i], "12-34-56-78-9A-BC", 4567);
         }
         else if (!strcmp(argv[i], "-dstmac")) {
             if (++i >= argc) {
                 Usage();
             }
             if (dstipidx > 0) {
-                g_LocalAdapter->SetTarget(argv[dstipidx], argv[i], 1234);
+                g_LocalAdapter->SetTarget(argv[dstipidx], argv[i], 4567);
             }
             else {
                 Usage();
@@ -483,6 +479,16 @@ ParseQueueArgs(
             Queue->txPattern = (UCHAR*)malloc(Queue->txPatternLength);
             ASSERT_FRE(Queue->txPattern != NULL);
             GetDescriptorPattern(Queue->txPattern, Queue->txPatternLength, argv[i]);
+        }
+        else if (!strcmp(argv[i], "-tx_payload")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            ASSERT_FRE((strlen(argv[i]) % 2) == 0);
+            Queue->payloadsize = (UINT32)strlen(argv[i])>>1;
+			Queue->txPayload = (UCHAR*)malloc(Queue->payloadsize);
+            ASSERT_FRE(Queue->txPayload != NULL);
+			ASSERT_FRE(hex_string_to_bytes(argv[i], Queue->txPayload, Queue->payloadsize)>0);
         }
         else if (!strcmp(argv[i], "-lat_count")) {
             if (++i >= argc) {
@@ -639,10 +645,20 @@ ParseArgs(
     modestr = argv[i];
     ++i;
 
-    if (strcmp(argv[i++], "-i")) {
-        Usage();
+    if (!strcmp(argv[i], "-i")) {
+		if (++i >= argc) {
+			Usage();
+		}
+		g_IfIndex = atoi(argv[i++]);
+		g_LocalAdapter->InitLocalByIdx(g_IfIndex, 4321);
     }
-    g_IfIndex = atoi(argv[i++]);
+    else if (!strcmp(argv[i], "-srcip")) {
+		if (++i >= argc) {
+			Usage();
+		}
+		g_LocalAdapter->InitLocalByIP(argv[i++], 4321);
+        g_IfIndex = g_LocalAdapter->GetIfindex();
+    }
 
     while (i < argc) {
         if (!strcmp(argv[i], "-t")) {

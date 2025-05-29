@@ -37,6 +37,7 @@
 
 #define WAIT_DRIVER_TIMEOUT_MS 1050
 #define STATS_ARRAY_SIZE 60
+const UINT16 DEFAULT_UDP_TTL = 128;
 
 extern INT g_IfIndex;
 extern BOOLEAN output_stdout;
@@ -95,6 +96,7 @@ public:
     UINT32 ringSize;
     UCHAR* txPattern;
     UINT32 txPatternLength;
+    UCHAR* txPayload;
     INT64* latSamples;
     UINT32 latSamplesCount;
     UINT32 latIndex;
@@ -153,6 +155,7 @@ public:
         this->latSamplesCount = DEFAULT_LAT_COUNT;
 
         this->payloadsize = DEFAULT_PAYLOAD_SIZE;
+        this->txPayload = NULL;
     }
 private:
     void notifyDriver(XSK_NOTIFY_FLAGS DirectionFlags);

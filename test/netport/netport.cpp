@@ -28,6 +28,34 @@ void bytes_to_hex_string(const uint8_t* bytes, size_t length, char* out_buffer, 
 }
 
 
+// hex char to int
+int hex_char_to_int(char c) {
+    if ('0' <= c && c <= '9') return c - '0';
+    if ('a' <= c && c <= 'f') return c - 'a' + 10;
+    if ('A' <= c && c <= 'F') return c - 'A' + 10;
+    return -1; // Illegal char
+}
+
+// hex_string to bytes, will return negative number when failure
+int hex_string_to_bytes(const char* hex, unsigned char* out, size_t max_len) {
+	size_t len = strlen(hex);
+	if (len % 2 != 0) return -1; // The length should be even number
+
+	size_t byte_count = len / 2;
+	if (byte_count > max_len) return -2; // target buffer is too small
+
+	for (size_t i = 0; i < byte_count; ++i) {
+		int high = hex_char_to_int(hex[2 * i]);
+		int low = hex_char_to_int(hex[2 * i + 1]);
+		if (high < 0 || low < 0) return -3; // Illegal character
+		out[i] = (unsigned char)((high << 4) | low);
+	}
+
+	return (int)byte_count;
+}
+
+
+
 // TODO: This is an example of a library function
 UCHAR
 HexToBin(
@@ -106,7 +134,7 @@ PktStringToInetAddressA(
 }
 #endif
 
-VOID* InitUdpPacket(/*BOOL IsUdp*/CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort, UINT32 PayloadLength, UINT32& PacketLength) {
+VOID* InitUdpPacket(/*BOOL IsUdp*/CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort, UINT32 PayloadLength, UINT32& PacketLength, const UINT8 ttl) {
     ETHERNET_ADDRESS EthSrc, EthDst;
     INET_ADDR IpSrc, IpDst;
     UINT16 PortSrc, PortDst;
@@ -165,13 +193,18 @@ VOID* InitUdpPacket(/*BOOL IsUdp*/CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHA
     }
 
     //if (IsUdp) {
-    if (!PktBuildUdpFrame(
-        PacketBuffer, &PacketLength, PayloadBuffer, PayloadLength, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
-        PortDst, PortSrc)) {
-        free(PayloadBuffer);
-        free(PacketBuffer);
-    }
-    /*
+	if (!PktBuildUdpFrame(
+		PacketBuffer, &PacketLength,
+		PayloadBuffer, PayloadLength,
+		&EthDst, &EthSrc,
+		Af,
+		&IpDst, &IpSrc,
+		PortDst, PortSrc,
+		ttl)) {
+		free(PayloadBuffer);
+		free(PacketBuffer);
+	}
+	/*
         }
 
         else {
@@ -201,7 +234,8 @@ BOOL CreateUdpPacket(
     const UCHAR* payloadBuffer,
     UINT32 payloadLength,
     UCHAR* mtuBuffer,
-    UINT32& packetLength
+    UINT32& packetLength,
+    const UINT8 ttl
 ) {
     UINT16 PortSrc, PortDst;
     
@@ -223,14 +257,14 @@ BOOL CreateUdpPacket(
     if (!PktBuildUdpFrame(
         //PacketBuffer, &PacketLength, PayloadBuffer, PayloadLength, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
         mtuBuffer, &packetLength, payloadBuffer, payloadLength, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
-        PortDst, PortSrc)) {
+        PortDst, PortSrc, ttl)) {
         return FALSE;
     }
 
     return TRUE;
 }
        
-BOOL AdapterMeta::FillMTUBufferWithPayload(const UCHAR* payload, UINT32 size, UINT32& packetsize, BYTE* mtuBuffer) {
+BOOL AdapterMeta::FillMTUBufferWithPayload(const UCHAR* payload, UINT32 size, UINT32& packetsize, BYTE* mtuBuffer, const UINT8 ttl) {
     return CreateUdpPacket(
 		Af,
         srcEthAddr, 
@@ -242,7 +276,8 @@ BOOL AdapterMeta::FillMTUBufferWithPayload(const UCHAR* payload, UINT32 size, UI
         payload,
         size, 
         mtuBuffer,
-        packetsize);
+        packetsize,
+        ttl);
 }
         
 BOOL AdapterMeta::fillAdapterInfo(PIP_ADAPTER_INFO padapterinfo) {
@@ -308,21 +343,45 @@ BOOL AdapterMeta::findAdapterByIP(const char* targetIP, const UINT16 srcport) {
     return TRUE;
 }
 
+BOOL AdapterMeta::InitLocalByIdx(const UINT32 idx, const UINT16 port) {
+    ULONG bufferSize = 0;
+    GetAdaptersAddresses(AF_INET, 0, nullptr, nullptr, &bufferSize);
+
+    IP_ADAPTER_ADDRESSES* adapterAddresses = (IP_ADAPTER_ADDRESSES*)malloc(bufferSize);
+    if (GetAdaptersAddresses(AF_INET, 0, nullptr, adapterAddresses, &bufferSize) == NO_ERROR) {
+        for (IP_ADAPTER_ADDRESSES* adapter = adapterAddresses; adapter != nullptr; adapter = adapter->Next) {
+            if (adapter->IfIndex == idx) {
+                //printf("Interface: %s\n", adapter->FriendlyName);
+                for (IP_ADAPTER_UNICAST_ADDRESS* addr = adapter->FirstUnicastAddress; addr != nullptr; addr = addr->Next) {
+                    SOCKADDR_IN* sa_in = (SOCKADDR_IN*)addr->Address.lpSockaddr;
+                    char ipStr[INET_ADDRSTRLEN];
+                    inet_ntop(AF_INET, &(sa_in->sin_addr), ipStr, sizeof(ipStr));
+                    printf("IPv4 Address: %s\n", ipStr);
+                    this->InitLocalByIP(ipStr, port);
+                }
+                this->ifindex = idx;
+                break;
+            }
+        }
+    }
+
+    free(adapterAddresses);
+
+    return TRUE;
+}
 BOOL AdapterMeta::InitLocalByIP(const char* ipaddr, const UINT16 port) {
     if (!findAdapterByIP(ipaddr, port)) {
 		printf("Cannot locate the adapter by ip\n");
         return FALSE;
     }
-    if (identifyLocal() == FALSE) {
-        return FALSE;
-    }
+    return identifyLocal();
     /*
     if (inet_pton(AF_INET, adapterInfo.IpAddressList.IpAddress.String, &dstIpAddr.Ipv4) != 1) {
         printf("inet_pton failed\n");
         return FALSE;
     }*/
     //memcpy(&verbSrcEthAddr, adapterInfo.Address, 6);
-    return TRUE;
+    //return TRUE;
 }
 
 BOOL AdapterMeta::debug_output() {
