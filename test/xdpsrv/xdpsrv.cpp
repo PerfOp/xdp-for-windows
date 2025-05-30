@@ -491,7 +491,7 @@ ParseQueueArgs(
             Queue->txPatternLength /= 2;
             Queue->txPattern = (UCHAR*)malloc(Queue->txPatternLength);
             ASSERT_FRE(Queue->txPattern != NULL);
-            GetDescriptorPattern(Queue->txPattern, Queue->txPatternLength, argv[i]);
+            HexStringToByte(Queue->txPattern, Queue->txPatternLength, argv[i]);
         }
         else if (!strcmp(argv[i], "-tx_payload")) {
             if (++i >= argc) {
@@ -501,7 +501,8 @@ ParseQueueArgs(
             Queue->payloadsize = (UINT32)strlen(argv[i])>>1;
 			Queue->txPayload = (UCHAR*)malloc(Queue->payloadsize);
             ASSERT_FRE(Queue->txPayload != NULL);
-			ASSERT_FRE(hex_string_to_bytes(argv[i], Queue->txPayload, Queue->payloadsize)>0);
+			//ASSERT_FRE(hex_string_to_bytes(argv[i], Queue->txPayload, Queue->payloadsize)>0);
+            HexStringToByte(Queue->txPayload, Queue->payloadsize, argv[i]);
         }
         else if (!strcmp(argv[i], "-lat_count")) {
             if (++i >= argc) {

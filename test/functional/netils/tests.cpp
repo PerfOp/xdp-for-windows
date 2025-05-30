@@ -196,7 +196,7 @@ namespace UnitTestExample
 			BYTE* loadBuffer = (BYTE*)malloc(refSize/2);
 
             if (loadBuffer != NULL) {
-                GetDescriptorPattern(loadBuffer, refSize, refBuffer);
+                HexStringToByte(loadBuffer, refSize, refBuffer);
             }
             BYTE* mtuBuffer = NULL;
             UINT32 PacketLength = 0;
@@ -223,7 +223,7 @@ namespace UnitTestExample
             memset((VOID*)loadBuffer, 0, kPacketSize);// = (BYTE*)malloc(refSize / 2);
 			Assert::AreEqual(kPacketSize, refSize / 2);
 
-			GetDescriptorPattern(loadBuffer, refSize, refBuffer);
+            HexStringToByte(loadBuffer, refSize, refBuffer);
 
             UCHAR payload[kPayloadLength];
 			memset(payload, 0, sizeof(payload));
@@ -240,10 +240,11 @@ namespace UnitTestExample
                 MtuBuffer + sizeof(ETHERNET_HEADER)));
 			Assert::IsTrue(CompareUdpHeader(loadBuffer + sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER), 
                 MtuBuffer + sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER)));
-            
+           /*
             char output[kPacketSize * 2 + 1] = { 0 };
             bytes_to_hex_string(MtuBuffer, kPacketSize, output, kPacketSize*2+1);
             Logger::WriteMessage(output);
+            */
 
 		}
 
@@ -256,7 +257,7 @@ namespace UnitTestExample
             memset((VOID*)loadBuffer, 0, kPacketSize);// = (BYTE*)malloc(refSize / 2);
 			Assert::AreEqual(kPacketSize, refSize / 2);
 
-			GetDescriptorPattern(loadBuffer, refSize, refBuffer);
+            HexStringToByte(loadBuffer, refSize, refBuffer);
 
             UCHAR payload[kPayloadLength];
 			memset(payload, 0, sizeof(payload));
@@ -273,24 +274,28 @@ namespace UnitTestExample
                 MtuBuffer + sizeof(ETHERNET_HEADER)));
 			Assert::IsTrue(CompareUdpHeader(loadBuffer + sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER), 
                 MtuBuffer + sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER)));
-            
+           
+            /*
             char output[kPacketSize * 2 + 1] = { 0 };
             bytes_to_hex_string(MtuBuffer, kPacketSize, output, kPacketSize*2+1);
             Logger::WriteMessage(output);
-
+            */
 		}
         
         TEST_METHOD(TestDynamicPacket_TTL) {
-			char refBuffer[] = "123456789ABC7C1E52232A870800450000B8000000008011DC920A0C060214A838EDD60711D700A44774638C2232E0E8DE3E95140000000C020D00000310810001800B0C4080000000000000008008090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F606162636465666768696A6B6C6D6E6F707172737475767778797A7B7C7D7E7F\0";
+            char refBuffer[] = "123456789ABC7C1E52232A870800450000B8000000008011DC920A0C060214A838EDD60711D700A44774638C2232E0E8DE3E95140000000C020D00000310810001800B0C4080000000000000008008090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F606162636465666768696A6B6C6D6E6F707172737475767778797A7B7C7D7E7F\0";
             UINT32 hexLength = (UINT32)strlen(refBuffer);
             UINT32 mtuLength = hexLength >> 1;
-			UINT32 payloadLength = mtuLength - 42; // Ethernet + IPv4 header length
+            UINT32 payloadLength = mtuLength - 42; // Ethernet + IPv4 header length
             BYTE* inputMtuBuffer = NULL;
             inputMtuBuffer = (BYTE*)malloc(mtuLength);
 
-			printf("MTU Length: %u\n", mtuLength);
-            int ret = hex_string_to_bytes(refBuffer , inputMtuBuffer, mtuLength);
-            Assert::IsTrue(ret > 0);
+            if (inputMtuBuffer == NULL) {
+                Assert::Fail(L"Failed to allocate memory for input MTU buffer.");
+            }
+            else {
+                HexStringToByte(inputMtuBuffer, mtuLength, refBuffer);
+            }
 			BYTE* purePayload = inputMtuBuffer + 42; // Skip the first 42 bytes (Ethernet + IPv4 header)
             
             AdapterMeta localAdapter;
@@ -307,32 +312,6 @@ namespace UnitTestExample
                 MtuBuffer + sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER)));
 
 			free(inputMtuBuffer);
-            /*
-            UINT32 refSize = (UINT32)strlen(refBuffer);
-            BYTE loadBuffer[kPacketSize];
-            memset((VOID*)loadBuffer, 0, kPacketSize);// = (BYTE*)malloc(refSize / 2);
-			Assert::AreEqual(kPacketSize, refSize / 2);
-
-			GetDescriptorPattern(loadBuffer, refSize, refBuffer);
-
-            UCHAR payload[kPayloadLength];
-			memset(payload, 0, sizeof(payload));
-            AdapterMeta localAdapter;
-			localAdapter.SetTarget("10.2.1.108", "12-34-56-78-9a-bc", 1234);
-			localAdapter.AssingLocal("10.2.1.114", "7C-1E-52-3E-F5-D8", 4321);
-            UINT32 packetSize=0;
-            BYTE MtuBuffer[2048];
-            localAdapter.FillMTUBufferWithPayload(payload, 64, packetSize, MtuBuffer);
-            Assert::AreEqual(packetSize, (UINT32)kPacketSize);
-            if (loadBuffer != NULL) {
-				for (UINT32 i = 0; i < refSize/2; i++) {
-                    Assert::AreEqual(loadBuffer[i], MtuBuffer[i]);
-				}
-            }
-            char output[kPacketSize * 2 + 1] = { 0 };
-            bytes_to_hex_string(MtuBuffer, kPacketSize, output, kPacketSize*2+1);
-            Logger::WriteMessage(output);
-*/
         }
 
     };

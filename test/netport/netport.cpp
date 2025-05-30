@@ -14,7 +14,7 @@
 #pragma warning(push)
 #pragma warning(disable: 6001)
 
-void bytes_to_hex_string(const uint8_t* bytes, size_t length, char* out_buffer, size_t buffer_size) {
+VOID ByteToHexString(const UCHAR* bytes, const size_t length, CHAR* out_buffer, const size_t buffer_size) {
     size_t offset = 0;
     for (size_t i = 0; i < length && offset < buffer_size - 3; ++i) {
         int written = snprintf(out_buffer + offset, buffer_size - offset, "%02X", bytes[i]);
@@ -25,34 +25,6 @@ void bytes_to_hex_string(const uint8_t* bytes, size_t length, char* out_buffer, 
     }
     out_buffer[offset] = '\0';
 }
-
-// hex char to int
-int hex_char_to_int(char c) {
-    if ('0' <= c && c <= '9') return c - '0';
-    if ('a' <= c && c <= 'f') return c - 'a' + 10;
-    if ('A' <= c && c <= 'F') return c - 'A' + 10;
-    return -1; // Illegal char
-}
-
-// hex_string to bytes, will return negative number when failure
-int hex_string_to_bytes(const char* hex, unsigned char* out, size_t max_len) {
-	size_t len = strlen(hex);
-	if (len % 2 != 0) return -1; // The length should be even number
-
-	size_t byte_count = len / 2;
-	if (byte_count > max_len) return -2; // target buffer is too small
-
-	for (size_t i = 0; i < byte_count; ++i) {
-		int high = hex_char_to_int(hex[2 * i]);
-		int low = hex_char_to_int(hex[2 * i + 1]);
-		if (high < 0 || low < 0) return -3; // Illegal character
-		out[i] = (unsigned char)((high << 4) | low);
-	}
-
-	return (int)byte_count;
-}
-
-
 
 // TODO: This is an example of a library function
 UCHAR
@@ -75,7 +47,7 @@ HexToBin(
 }
 
 VOID
-GetDescriptorPattern(
+HexStringToByte(
 	_Inout_ UCHAR* Buffer,
 	_In_ UINT32 BufferSize,
 	_In_opt_z_ const CHAR* Hex

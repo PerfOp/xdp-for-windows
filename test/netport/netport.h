@@ -260,11 +260,16 @@ extern "C" {
         );
 
     VOID
-        GetDescriptorPattern(
+        HexStringToByte(
             _Inout_ UCHAR* Buffer,
             _In_ UINT32 BufferSize,
             _In_opt_z_ const CHAR* Hex
         );
+	VOID ByteToHexString(
+        _In_ const UCHAR* bytes, 
+        _In_ const size_t length, 
+        _Out_ CHAR* out_buffer, 
+        _In_ const size_t buffer_size) ;
 
 class AdapterMeta {
     private:
@@ -321,8 +326,6 @@ class AdapterMeta {
 
 VOID* InitUdpPacket(CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort, UINT32 PayloadLength, UINT32& bufferLength, const UINT8 ttl=1) ;
 
-void bytes_to_hex_string(const uint8_t* bytes, size_t length, char* out_buffer, size_t buffer_size);
-int hex_string_to_bytes(const char* hex, unsigned char* out, size_t max_len);
 
 
 #ifdef __cplusplus
