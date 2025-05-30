@@ -14,7 +14,6 @@
 #pragma warning(push)
 #pragma warning(disable: 6001)
 
-
 void bytes_to_hex_string(const uint8_t* bytes, size_t length, char* out_buffer, size_t buffer_size) {
     size_t offset = 0;
     for (size_t i = 0; i < length && offset < buffer_size - 3; ++i) {
@@ -26,7 +25,6 @@ void bytes_to_hex_string(const uint8_t* bytes, size_t length, char* out_buffer, 
     }
     out_buffer[offset] = '\0';
 }
-
 
 // hex char to int
 int hex_char_to_int(char c) {
@@ -134,7 +132,17 @@ PktStringToInetAddressA(
 }
 #endif
 
-VOID* InitUdpPacket(/*BOOL IsUdp*/CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort, UINT32 PayloadLength, UINT32& PacketLength, const UINT8 ttl) {
+VOID* InitUdpPacket(
+    CHAR* srcETH, 
+    CHAR* srcIP, 
+    UINT16 srcPort, 
+    CHAR* dstETH, 
+    CHAR* dstIP, 
+    UINT16 dstPort, 
+    UINT32 PayloadLength, 
+    UINT32& PacketLength, 
+    const UINT8 ttl)
+{
     ETHERNET_ADDRESS EthSrc, EthDst;
     INET_ADDR IpSrc, IpDst;
     UINT16 PortSrc, PortDst;

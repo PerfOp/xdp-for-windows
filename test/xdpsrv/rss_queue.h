@@ -45,7 +45,6 @@ extern INT g_IfIndex;
 extern BOOLEAN output_stdout;
 extern CHAR* modestr;
 
-
 typedef enum {
     ModeRx,
     ModeTx,

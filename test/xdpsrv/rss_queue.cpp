@@ -1,7 +1,7 @@
 #include "rss_queue.h"
 #include "netport.h"
 #include "internal_utils.h"
-#include "HighPerfTimer.h"
+#include "highperf_timer.h"
 
 MODE mode;
 

@@ -4,7 +4,7 @@
 #include <ctime>
 #endif // OLS_PLATFORM_WINDOWS
 
-#include "HighPerfTimer.h"
+#include "highperf_timer.h"
 
 COLSHighPerfTimer COLSHighPerfTimer::s_GlobalTimer(true);
 
