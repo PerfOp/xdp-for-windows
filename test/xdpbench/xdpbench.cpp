@@ -1684,8 +1684,10 @@ GenerateDownTx(
     }
 
     //huajianwang:eelat
+	//printf("--------------------------------------------g_downSentCount: %d, Queue->fpg: %d\n", g_downSentCount, Queue->fpg);
     if(g_downSentCount<Queue->fpg){
-		UINT32 nextsent = min(Queue->iobatchsize, Queue->frameperfile - Queue->sent);
+		//UINT32 nextsent = min(Queue->iobatchsize, Queue->frameperfile - Queue->sent);
+        UINT32 nextsent = min(Queue->iobatchsize, Queue->fpg - g_downSentCount);
 		//ULONG nextsent = min(Queue->iobatchsize, Queue->fpg - g_downSentCount);
         /*
 		available =
