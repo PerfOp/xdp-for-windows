@@ -34,14 +34,12 @@ CHAR* HELP =
 "                      Default: " STR_OF(DEFAULT_UMEM_CHUNK_SIZE) "\n"
 "   -h <headroom>      The size (in bytes) of UMEM chunk headroom\n"
 "                      Default: " STR_OF(DEFAULT_UMEM_HEADROOM) "\n"
-"   -framerate <framerate>     The rate for sending frames (per second)\n"
-"                      Default: " STR_OF(DEFAULT_FRAME_RATE) "\n"
-"   -filerate <filerate>     The rate for sending files (per second)\n"
-"                      Default: " STR_OF(DEFAULT_FILE_RATE) "\n"
-"   -fpg <frames/group>     The frames per group for downloading mode.\n"
-"                      Default: 1\n"
-"   -framesperfile     The  (in packets) of the File to benchmark throughput\n"
-"                      Default: " STR_OF(DEFAULT_FRAMES_PER_FILE) "\n"
+"   -reqpps <reqpps>   The rate for sending requests(per second)\n"
+"                      Default: " STR_OF(DEFAULT_REQ_RATE) "\n"
+"   -reqbatch          The  (in packets) of the File to benchmark throughput\n"
+"                      Default: " STR_OF(DEFAULT_REQ_BATCH) "\n"
+"   -waitbatch         The waitbatch is valid for up mode, ack when receiving every waitbatch frames\n"
+"                      Default: " STR_OF(DEFAULT_WAIT_BATCH) "\n"
 "   -txio <txiosize>   The size (in bytes) of each IO in tx mode\n"
 "                      Default: " STR_OF(DEFAULT_TX_IO_SIZE) "\n"
 "   -b <iobatchsize>   The number of buffers to submit for IO at once\n"
@@ -192,9 +190,11 @@ typedef struct {
     XSK_RING freeRing;
     XSK_UMEM_REG umemReg;
     //huajianwang:eelat
-    UINT32 frameperfile;
-    UINT32 filerate;
-    UINT32 framerate;
+    UINT32 ackBatch; //Download
+    UINT32 waitBatch; //Upload
+
+    UINT32 reqBatch;
+    UINT32 reqPPS;
     UINT32 sent;
     UINT32 received;
     UINT64 doneSamplesOnTxMode;
@@ -204,10 +204,9 @@ typedef struct {
     // 2) upload serving mode for generate a upload response to the client when get the fpg th packet.
     // 3) clilat mode for record latency when get the fpg'th packet.
     // only valid for download/upload serving mode.
-    UINT32 fpg;
+    //UINT32 fpg;
     LARGE_INTEGER sendStartMark;
     sTokenBucket filebucket;
-    sTokenBucket packetbucket;
     bool sending;
     //-huajianwang:eelat
 } MY_QUEUE;
@@ -803,7 +802,7 @@ PrintFinalLatStats(
         Queue->latSamples[(UINT32)(Queue->latIndex * 0.9999)],
         Queue->latSamples[(UINT32)(Queue->latIndex * 0.99999)],
         Queue->latSamples[(UINT32)(Queue->latIndex * 0.999999)],
-        Queue->fpg,
+        Queue->ackBatch,
         maxRecvOrder);
 
     // If latIndex >= 1,000,000 - 1, print out first pkt loss percentiles for first 1,000,000 values, then print out total pkt loss
@@ -859,7 +858,7 @@ PrintFinalLatStats(
         Queue->orderSamples[(UINT32)(Queue->latIndex * 0.9999)],
         Queue->orderSamples[(UINT32)(Queue->latIndex * 0.99999)],
         Queue->orderSamples[(UINT32)(Queue->latIndex * 0.999999)],
-        Queue->frameperfile
+        Queue->reqBatch
     );
     printf(
         "position at: %-3s[%d]: min=%d P50=%d P90=%d P99=%d P99.9=%d P99.99=%d P99.999=%d P99.9999=%d packets lost\n",
@@ -949,7 +948,7 @@ PrintFinalStats(
         PrintFinalLatStats(Queue);
     }
     if (mode == ModeTx) {
-        printf("Send batch as %d with %llu samples\n", Queue->frameperfile, Queue->doneSamplesOnTxMode);
+        printf("Send batch as %d with %llu samples\n", Queue->reqBatch, Queue->doneSamplesOnTxMode);
     }
     //-huajianwang:eelat
 }
@@ -1094,7 +1093,7 @@ ReadRxPacketsForLatency(
                 Queue->latIndex = idx;
             }
             Queue->orderSamples[idx]++;
-            if (Queue->orderSamples[idx] == Queue->fpg)
+            //if (Queue->orderSamples[idx] == Queue->fpg)
             {
                 LARGE_INTEGER now;
                 QueryPerformanceCounter(&now);
@@ -1453,9 +1452,11 @@ ProcessTx(
 
     //huajianwang:eelat
     UINT32 nextsent = Queue->iobatchsize;
-	if (Queue->filerate != 0) {
+    /*
+	if (Queue->reqpps != 0) {
         nextsent = min(Queue->iobatchsize, Queue->frameperfile - Queue->sent);
 	}
+    */
     //available =
     //    RingPairReserve(
     //        &Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, Queue->iobatchsize);
@@ -1512,9 +1513,7 @@ DoTxModeTokenBucket(
     // One Queue, no need to worry about multiple queues
     for (UINT32 qI = 0; qI < Thread->queueCount; qI++) {
         //init_token_bucket(&(Thread->queues[qI].filebucket), Thread->queues[qI].filerate, Thread->queues[qI].filerate);
-        //init_token_bucket(&(Thread->queues[qI].packetbucket), Thread->queues[qI].iobatchsize, Thread->queues[qI].framerate);
-        Thread->queues[qI].filebucket.init_token_bucket(Thread->queues[qI].filerate, Thread->queues[qI].filerate);
-        Thread->queues[qI].packetbucket.init_token_bucket(Thread->queues[qI].iobatchsize, Thread->queues[qI].framerate);
+        Thread->queues[qI].filebucket.init_token_bucket(Thread->queues[qI].reqPPS, Thread->queues[qI].reqPPS);
         Thread->queues[qI].sending = false;
     }
 
@@ -1522,7 +1521,7 @@ DoTxModeTokenBucket(
         BOOLEAN Processed = FALSE;
 
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-			if (Thread->queues[qIndex].filerate == 0) {
+			if (Thread->queues[qIndex].reqPPS == 0) {
 				Processed |= ProcessTx(&Thread->queues[qIndex], Thread->wait);
 			}
 			else {
@@ -1534,12 +1533,12 @@ DoTxModeTokenBucket(
 				}
 				if (Thread->queues[qIndex].sending) {
 					//if ((Thread->queues[qIndex].packetbucket.consume_tokens(Thread->queues[qIndex].iobatchsize) != 0)) {
-						if (Thread->queues[qIndex].sent < Thread->queues[qIndex].frameperfile) {
+						if (Thread->queues[qIndex].sent < Thread->queues[qIndex].reqBatch) {
 							Processed |= ProcessTx(&Thread->queues[qIndex], Thread->wait);
 						}
 					//}
 				}
-				if (Thread->queues[qIndex].sent >= Thread->queues[qIndex].frameperfile) {
+				if (Thread->queues[qIndex].sent >= Thread->queues[qIndex].reqBatch) {
 					LARGE_INTEGER now;
 					QueryPerformanceCounter(&now);
 					Thread->queues[qIndex].sending = false;
@@ -1611,7 +1610,8 @@ GenerateUpDoneTx(
     }
 
     //huajianwang:eelat
-	if (g_upReceiveCount > Queue->fpg) {
+	//if (g_upReceiveCount > Queue->fpg) {
+	if (g_upReceiveCount > Queue->waitBatch) {
 		// Got fpg frames as one upload request. Ack to the sender and reset the g_upReceiveCount.
 		available =
 			RingPairReserve(
@@ -1685,9 +1685,9 @@ GenerateDownTx(
 
     //huajianwang:eelat
 	//printf("--------------------------------------------g_downSentCount: %d, Queue->fpg: %d\n", g_downSentCount, Queue->fpg);
-    if(g_downSentCount<Queue->fpg){
+    if(g_downSentCount<Queue->ackBatch){
 		//UINT32 nextsent = min(Queue->iobatchsize, Queue->frameperfile - Queue->sent);
-        UINT32 nextsent = min(Queue->iobatchsize, Queue->fpg - g_downSentCount);
+        UINT32 nextsent = min(Queue->iobatchsize, Queue->ackBatch - g_downSentCount);
 		//ULONG nextsent = min(Queue->iobatchsize, Queue->fpg - g_downSentCount);
         /*
 		available =
@@ -2211,10 +2211,11 @@ ParseQueueArgs(
 
     Queue->txPatternLength = 0; 
     //huajianwang:eelat
-    Queue->frameperfile = DEFAULT_FRAMES_PER_FILE;
-    Queue->filerate = DEFAULT_FILE_RATE;
-    Queue->framerate = DEFAULT_FRAME_RATE;
-    Queue->fpg = 1;
+    Queue->ackBatch = DEFAULT_ACK_BATCH;
+    Queue->waitBatch = DEFAULT_WAIT_BATCH;
+    Queue->reqBatch = DEFAULT_REQ_BATCH;
+    Queue->reqPPS = DEFAULT_REQ_RATE;
+    //Queue->fpg = 1;
     //-huajianwang:eelat
 
     for (INT i = 0; i < argc; i++) {
@@ -2258,33 +2259,41 @@ ParseQueueArgs(
             Queue->iobatchsize = atoi(argv[i]);
             //huajianwang:eelat
         }
-        else if (!strcmp(argv[i], "-framerate")) {
+        else if (!strcmp(argv[i], "-reqpps")) {
             if (++i >= argc) {
                 Usage();
             }
-            Queue->framerate = atoi(argv[i]);
+            Queue->reqPPS = atoi(argv[i]);
         }
-        else if (!strcmp(argv[i], "-filerate")) {
+        else if (!strcmp(argv[i], "-reqbatch")) {
             if (++i >= argc) {
                 Usage();
             }
-            Queue->filerate = atoi(argv[i]);
-        }
-        else if (!strcmp(argv[i], "-fpg")) {
-            if (++i >= argc) {
-                Usage();
-            }
-            Queue->fpg = atoi(argv[i]);
-        }
-        else if (!strcmp(argv[i], "-frameperfile")) {
-            if (++i >= argc) {
-                Usage();
-            }
-            Queue->frameperfile = atoi(argv[i]);
+            Queue->reqBatch = atoi(argv[i]);
             Queue->sent = 0;
             Queue->received = 0;
             Queue->doneSamplesOnTxMode = 0;
             //-huajianwang:eelat
+        }
+        else if (!strcmp(argv[i], "-ackbatch")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            Queue->ackBatch = atoi(argv[i]);
+			if (mode != ModeDown) {
+				printf("ackbatch is only valid in Down mode.\n");
+                Usage();
+			}
+        }
+        else if (!strcmp(argv[i], "-waitbatch")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            Queue->waitBatch = atoi(argv[i]);
+			if (mode != ModeUp) {
+				printf("waitbatch is only valid in Up mode.\n");
+                Usage();
+			}
         }
         else if (!strcmp(argv[i], "-h")) {
             if (++i >= argc) {

@@ -44,8 +44,10 @@
 #define DEFAULT_YIELD_COUNT 0
 
 //huajianwang:eelat
-#define DEFAULT_FRAMES_PER_FILE 1
-#define DEFAULT_FILE_RATE 0
+#define DEFAULT_REQ_BATCH 1
+#define DEFAULT_ACK_BATCH 1
+#define DEFAULT_WAIT_BATCH 1
+#define DEFAULT_REQ_RATE 0
 #define DEFAULT_FRAME_RATE 10000
 //-huajianwang:eelat
 
