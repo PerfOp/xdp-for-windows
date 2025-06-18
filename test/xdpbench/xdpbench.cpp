@@ -154,9 +154,9 @@ typedef struct {
     ULONG txiosize;
     ULONG iobatchsize;
     UINT32 ringsize;
-    UCHAR* txPattern;
+    UCHAR * txPattern;
     UINT32 txPatternLength;
-    INT64* latSamples;
+    INT64 * latSamples;
     //huajianwang: storing the maximum frame order in receiving batch of frames.
     UINT32* orderSamples;
     //-huajianwang:eelat
@@ -198,6 +198,12 @@ typedef struct {
     UINT32 sent;
     UINT32 received;
     UINT64 doneSamplesOnTxMode;
+	// -huajianwang: parameter for benchmarking download and upload latency.
+    // only valid for 
+    // 1) download serving mode for generating a group of packets as download workload.
+    // 2) upload serving mode for generate a upload response to the client when get the fpg th packet.
+    // 3) clilat mode for record latency when get the fpg'th packet.
+    // only valid for download/upload serving mode.
     UINT32 fpg;
     LARGE_INTEGER sendStartMark;
     sTokenBucket filebucket;
@@ -773,18 +779,32 @@ PrintFinalLatStats(
     fclose(file);
     
     qsort(Queue->latSamples, Queue->latIndex, sizeof(*Queue->latSamples), LatCmp);
+       
+    UINT32 recvStart = 0;
+    UINT32 maxRecvOrder = 0;
+    for (recvStart = 0; recvStart < Queue->latIndex; recvStart++) {
+		maxRecvOrder = max(maxRecvOrder, Queue->orderSamples[recvStart]);
+    }
 
+    for (recvStart = 0; recvStart < Queue->latIndex; recvStart++) {
+        if (Queue->orderSamples[recvStart] == maxRecvOrder) {
+            break;
+        }
+    }
     printf(
-        "%-3s[%d]: min=%llu P50=%llu P90=%llu P99=%llu P99.9=%llu P99.99=%llu P99.999=%llu P99.9999=%llu us rtt\n",
+        "%-3s[%d]: min=%llu at %u P50=%llu P90=%llu P99=%llu P99.9=%llu P99.99=%llu P99.999=%llu P99.9999=%llu us rtt collecting latecies on %d th frame, packetSize %u \n",
         modestr, Queue->queueId,
-        Queue->latSamples[0],
+        //Queue->latSamples[0],
+        Queue->latSamples[recvStart],recvStart,
         Queue->latSamples[(UINT32)(Queue->latIndex * 0.5)],
         Queue->latSamples[(UINT32)(Queue->latIndex * 0.9)],
         Queue->latSamples[(UINT32)(Queue->latIndex * 0.99)],
         Queue->latSamples[(UINT32)(Queue->latIndex * 0.999)],
         Queue->latSamples[(UINT32)(Queue->latIndex * 0.9999)],
         Queue->latSamples[(UINT32)(Queue->latIndex * 0.99999)],
-        Queue->latSamples[(UINT32)(Queue->latIndex * 0.999999)]);
+        Queue->latSamples[(UINT32)(Queue->latIndex * 0.999999)],
+        Queue->fpg,
+        maxRecvOrder);
 
     // If latIndex >= 1,000,000 - 1, print out first pkt loss percentiles for first 1,000,000 values, then print out total pkt loss
     if (Queue->latIndex >= 1000000 - 1)
@@ -1054,7 +1074,7 @@ ReadRxPacketsForLatency(
 {
     //huajianwang:eelat
     LONGLONG end = 0;
-    LONGLONG packetorder = 0;
+    //LONGLONG packetorder = 0;
     //-huajianwang:eelat
 
     for (UINT32 i = 0; i < Count; i++) {
@@ -1064,14 +1084,18 @@ ReadRxPacketsForLatency(
         INT64 UNALIGNED* Timestamp = (INT64 UNALIGNED*)
             ((CHAR*)Queue->umemReg.Address + rxDesc->Address.BaseAddress + rxDesc->Address.Offset + 42);
         end = *Timestamp;
+        /*
         packetorder = Timestamp[1];
         UINT32 idx = (UINT32)packetorder;
+        */
+        UINT32 idx = (UINT32)Timestamp[1];
         if (idx < Queue->latSamplesCount) {
             if (idx > Queue->latIndex) {
                 Queue->latIndex = idx;
             }
             Queue->orderSamples[idx]++;
-            if (Queue->orderSamples[idx] == Queue->fpg) {
+            if (Queue->orderSamples[idx] == Queue->fpg)
+            {
                 LARGE_INTEGER now;
                 QueryPerformanceCounter(&now);
 				Queue->latSamples[idx] = max(now.QuadPart - end, Queue->latSamples[idx]);
@@ -1312,6 +1336,11 @@ WriteTxPackets(
     UINT32 Count
 )
 {
+	if (Queue->sent == 0) {
+		// LONGLONG prev = Thread->queues[qIndex].sendStartMark.QuadPart;
+		QueryPerformanceCounter(&(Queue->sendStartMark));
+		// printf("From last %lld us\n", QpcToUs64((Thread->queues[qIndex].sendStartMark.QuadPart - prev), g_FreqQpc.QuadPart));
+	}
     for (UINT32 i = 0; i < Count; i++) {
         UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, FreeConsumerIndex++);
         XSK_BUFFER_DESCRIPTOR* txDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&Queue->txRing, TxProducerIndex++);
@@ -1505,11 +1534,6 @@ DoTxModeTokenBucket(
 				}
 				if (Thread->queues[qIndex].sending) {
 					//if ((Thread->queues[qIndex].packetbucket.consume_tokens(Thread->queues[qIndex].iobatchsize) != 0)) {
-						if (Thread->queues[qIndex].sent == 0) {
-                            // LONGLONG prev = Thread->queues[qIndex].sendStartMark.QuadPart;
-							QueryPerformanceCounter(&(Thread->queues[qIndex].sendStartMark));
-                            // printf("From last %lld us\n", QpcToUs64((Thread->queues[qIndex].sendStartMark.QuadPart - prev), g_FreqQpc.QuadPart));
-						}
 						if (Thread->queues[qIndex].sent < Thread->queues[qIndex].frameperfile) {
 							Processed |= ProcessTx(&Thread->queues[qIndex], Thread->wait);
 						}
@@ -1587,7 +1611,6 @@ GenerateUpDoneTx(
     }
 
     //huajianwang:eelat
-    //UINT32 nextsent = min(Queue->iobatchsize, Queue->frameperfile - Queue->sent);
 	if (g_upReceiveCount > Queue->fpg) {
 		// Got fpg frames as one upload request. Ack to the sender and reset the g_upReceiveCount.
 		available =
@@ -1661,14 +1684,19 @@ GenerateDownTx(
     }
 
     //huajianwang:eelat
-    //UINT32 nextsent = min(Queue->iobatchsize, Queue->frameperfile - Queue->sent);
+	//printf("--------------------------------------------g_downSentCount: %d, Queue->fpg: %d\n", g_downSentCount, Queue->fpg);
     if(g_downSentCount<Queue->fpg){
+		//UINT32 nextsent = min(Queue->iobatchsize, Queue->frameperfile - Queue->sent);
+        UINT32 nextsent = min(Queue->iobatchsize, Queue->fpg - g_downSentCount);
+		//ULONG nextsent = min(Queue->iobatchsize, Queue->fpg - g_downSentCount);
+        /*
 		available =
 			RingPairReserve(
 				&Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, Queue->iobatchsize);
-		//available =
-		//    RingPairReserve(
-		//        &Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, nextsent);
+                */
+		available =
+		    RingPairReserve(
+		        &Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, nextsent);
 		//-huajianwang:eelat
 
 		if (available > 0) {
@@ -1878,7 +1906,7 @@ DoFwdMode(
     }
 }
 
-// Upload serving mode: count received packets and response when it reach FPG and will reset it.
+// Upload "serving" mode: count received packets and response when it reach FPG and will reset it.
 VOID
 DoUpMode(
     MY_THREAD * Thread
@@ -1908,7 +1936,6 @@ DoUpMode(
         for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
             //Processed |= !!ProcessFwd(&Thread->queues[qIndex], Thread->wait);
             if (Thread->queues[qIndex].txPatternLength > 0 ) {
-                //Processed |= GenerateDownTx(&Thread->queues[qIndex], Thread->wait);
 				Processed |= GenerateUpDoneTx(&Thread->queues[qIndex], Thread->wait);
             }
             else {
@@ -1927,8 +1954,7 @@ DoUpMode(
 
 }
 
-
-// In simulating the downloading case, no need to use tokenbucket for flow control.
+// Download "serving" mode: count received packets and response when it reach FPG and will reset it.
 VOID
 DoDownMode(
     MY_THREAD * Thread
@@ -2635,9 +2661,11 @@ DoThread(
         DoLatMode(thread);
     }
     else if (mode == ModeDown) {
+		// Download "serving" mode: count received packets and response when it reach FPG and will reset it.
         DoDownMode(thread);
     }
     else if (mode == ModeUp) {
+		// Upload "serving" mode: count received packets and response when it reach FPG and will reset it.
         DoUpMode(thread);
     }
 
