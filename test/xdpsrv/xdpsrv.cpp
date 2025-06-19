@@ -17,9 +17,9 @@ CHAR* modestr;
 HANDLE periodicStatsEvent;
 
 CHAR* HELP =
-"xskbench.exe <rx|tx|fwd|lat> -i <ifindex> [OPTIONS] <-t THREAD_PARAMS> [-t THREAD_PARAMS...] \n"
+"xdpsrv.exe <rx|tx|fwd|lat> -i <ifindex> [OPTIONS] <-t THREAD_PARAMS> [-t THREAD_PARAMS...] \n"
 "or\n"
-"xskbench.exe <rx|tx|fwd|lat> -srcip <localip> [OPTIONS] <-t THREAD_PARAMS> [-t THREAD_PARAMS...] \n"
+"xdpsrv.exe <rx|tx|fwd|lat> -srcip <localip> [OPTIONS] <-t THREAD_PARAMS> [-t THREAD_PARAMS...] \n"
 "\n"
 "THREAD_PARAMS: \n"
 "   -q <QUEUE_PARAMS> [-q QUEUE_PARAMS...] \n"
@@ -51,6 +51,8 @@ CHAR* HELP =
 "                      Default: " STR_OF(DEFAULT_UMEM_HEADROOM) "\n"
 "   -txio <txiosize>   The size (in bytes) of each IO in tx mode\n"
 "                      Default: " STR_OF(DEFAULT_TX_IO_SIZE) "\n"
+"   -reqpps <reqpps>   The preassigned query pps, default value is 0, which means no other limits\n"
+"                      Default: " STR_OF(DEFAULT_REQ_PPS) "\n"
 "   -payloadsize <payloadsize>   The size (in bytes) of payload.\n"
 "                      Default: " STR_OF(DEFAULT_PAYLOAD_SIZE) "\n"
 "   -b <iobatchsize>   The number of buffers to submit for IO at once\n"
@@ -98,11 +100,11 @@ CHAR* HELP =
 "                      Default: off\n"
 "\n"
 "Examples\n"
-"   xskbench.exe rx -i 6 -t -q -id 0\n"
-"   xskbench.exe rx -i 6 -t -ca 0x2 -q -id 0 -t -ca 0x4 -q -id 1\n"
-"   xskbench.exe tx -i 6 -t -q -id 0 -q -id 1\n"
-"   xskbench.exe fwd -i 6 -t -q -id 0 -y\n"
-"   xskbench.exe lat -i 6 -t -q -id 0 -ring_size 8\n"
+"   xdpsrv.exe rx -i 6 -t -q -id 0\n"
+"   xdpsrv.exe rx -i 6 -t -ca 0x2 -q -id 0 -t -ca 0x4 -q -id 1\n"
+"   xdpsrv.exe tx -i 6 -t -q -id 0 -q -id 1\n"
+"   xdpsrv.exe fwd -i 6 -t -q -id 0 -y\n"
+"   xdpsrv.exe lat -i 6 -t -q -id 0 -ring_size 8\n"
 ;
 
 VOID
@@ -384,6 +386,12 @@ ParseQueueArgs(
             }
             Queue->payloadsize = atoi(argv[i]);
         }
+        else if (!_stricmp(argv[i], "-reqpps")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            Queue->reqPPS = atoi(argv[i]);
+        }
         else if (!strcmp(argv[i], "-u")) {
             if (++i >= argc) {
                 Usage();
@@ -514,6 +522,8 @@ ParseQueueArgs(
             Usage();
         }
     }
+
+    g_LocalAdapter->debug_output();
 
     if (Queue->queueId == -1) {
         Usage();

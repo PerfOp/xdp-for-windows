@@ -117,7 +117,7 @@ VOID* InitUdpPacket(
 {
     ETHERNET_ADDRESS EthSrc, EthDst;
     INET_ADDR IpSrc, IpDst;
-    UINT16 PortSrc, PortDst;
+    //UINT16 PortSrc, PortDst;
     ADDRESS_FAMILY Af, AfSrc, AfDst;
     UCHAR* PayloadBuffer = NULL;
     UCHAR* PacketBuffer = NULL;
@@ -145,9 +145,10 @@ VOID* InitUdpPacket(
 
     Af = AfSrc;
 
+    /*
     PortSrc = htons(srcPort);
     PortDst = htons(dstPort);
-
+*/
     //if (IsUdp) {
     PacketLength = UDP_HEADER_BACKFILL(Af) + PayloadLength;
     __analysis_assume(PacketLength > UDP_HEADER_BACKFILL(Af));
@@ -179,7 +180,7 @@ VOID* InitUdpPacket(
 		&EthDst, &EthSrc,
 		Af,
 		&IpDst, &IpSrc,
-		PortDst, PortSrc,
+		dstPort, srcPort,
 		ttl)) {
 		free(PayloadBuffer);
 		free(PacketBuffer);
@@ -203,7 +204,7 @@ VOID* InitUdpPacket(
     return PacketBuffer;
 }
 
-BOOL CreateUdpPacket(
+BOOL BuildUdpPacket(
     ADDRESS_FAMILY Af,
     ETHERNET_ADDRESS EthSrc,
     INET_ADDR IpSrc,
@@ -217,11 +218,12 @@ BOOL CreateUdpPacket(
     UINT32& packetLength,
     const UINT8 ttl
 ) {
+    /*
     UINT16 PortSrc, PortDst;
     
     PortSrc = htons(srcPort);
     PortDst = htons(dstPort);
-
+*/
     //if (IsUdp) {
     packetLength = UDP_HEADER_BACKFILL(Af) + payloadLength;
     __analysis_assume(packetLength > UDP_HEADER_BACKFILL(Af));
@@ -237,15 +239,15 @@ BOOL CreateUdpPacket(
     if (!PktBuildUdpFrame(
         //PacketBuffer, &PacketLength, PayloadBuffer, PayloadLength, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
         mtuBuffer, &packetLength, payloadBuffer, payloadLength, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
-        PortDst, PortSrc, ttl)) {
+        dstPort, srcPort, ttl)) {
         return FALSE;
     }
 
     return TRUE;
 }
        
-BOOL AdapterMeta::FillMTUBufferWithPayload(const UCHAR* payload, UINT32 size, UINT32& packetsize, BYTE* mtuBuffer, const UINT8 ttl) {
-    return CreateUdpPacket(
+BOOL AdapterMeta::MTUFromPayload(const UCHAR* payload, UINT32 payloadlength, BYTE* mtuBuffer, UINT32& mtulength, const UINT8 ttl) {
+    return BuildUdpPacket(
 		Af,
         srcEthAddr, 
         srcIpAddr, 
@@ -254,9 +256,9 @@ BOOL AdapterMeta::FillMTUBufferWithPayload(const UCHAR* payload, UINT32 size, UI
         dstIpAddr, 
         dstPort,
         payload,
-        size, 
+        payloadlength, 
         mtuBuffer,
-        packetsize,
+        mtulength,
         ttl);
 }
         
@@ -355,20 +357,14 @@ BOOL AdapterMeta::InitLocalByIP(const char* ipaddr, const UINT16 port) {
         return FALSE;
     }
     return identifyLocal();
-    /*
-    if (inet_pton(AF_INET, adapterInfo.IpAddressList.IpAddress.String, &dstIpAddr.Ipv4) != 1) {
-        printf("inet_pton failed\n");
-        return FALSE;
-    }*/
-    //memcpy(&verbSrcEthAddr, adapterInfo.Address, 6);
-    //return TRUE;
 }
 
 BOOL AdapterMeta::debug_output() {
+    printf("Debug Output the meta of the Adapter\n");
     printf("ifindex: %d\n", ifindex);
     printf("mtu: %d\n", mtu);
-    printf("src IP : %s\n", verbSrcIpAddr);
-    printf("dst IP : %s\n", verbDstIpAddr);
+    printf("src IP : %s:%d\n", verbSrcIpAddr, srcPort);
+    printf("dst IP : %s:%d\n", verbDstIpAddr, dstPort);
     printf("src mac: %s\n", verbSrcEthAddr);
     printf("dst mac: %s\n", verbDstEthAddr);
     return TRUE;

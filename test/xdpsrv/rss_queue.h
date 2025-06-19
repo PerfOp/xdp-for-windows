@@ -30,6 +30,7 @@
 
 #define DEFAULT_PAYLOAD_SIZE 64
 //huajianwang:eelat
+const uint64_t DEFAULT_REQ_PPS = 0;
 #define DEFAULT_FRAMES_PER_FILE 1
 #define DEFAULT_FILE_RATE 0
 #define DEFAULT_FRAME_RATE 10000
@@ -37,7 +38,6 @@
 
 #define WAIT_DRIVER_TIMEOUT_MS 1050
 #define STATS_ARRAY_SIZE 60
-const UINT16 DEFAULT_UDP_TTL = 128;
 const UINT16 DEFAULT_DST_PORT = 1234;
 #define DEFAULT_DST_MAC_ADDR "12-34-56-78-9A-BC"
 
@@ -102,6 +102,7 @@ public:
     UINT32 latSamplesCount;
     UINT32 latIndex;
     XSK_POLL_MODE pollMode;
+    uint64_t reqPPS{ 0 };
 
     ULONG payloadsize;
 

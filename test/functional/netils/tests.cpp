@@ -164,7 +164,7 @@ BOOL CompareIpHeader(void* ref, void* target)
 	return TRUE;
 }
 
-BOOL CompareUdpHeader(void* ref, void* target) {
+BOOL CompareUdpHeader(void* ref, void* target, BOOL skipchecksum=FALSE) {
 	if (ref == NULL || target == NULL) {
 		return FALSE;
 	}
@@ -179,8 +179,12 @@ BOOL CompareUdpHeader(void* ref, void* target) {
 	if (refHeader->uh_ulen != targetHeader->uh_ulen) {
 		Assert::Fail(L"UDP length mismatch.");
 	}
-	if (refHeader->uh_sum != targetHeader->uh_sum) {
-		Assert::Fail(L"UDP checksum mismatch.");
+	//if(!skipchecksum && refHeader->uh_sum == 0 && targetHeader->uh_sum == 0) {
+	if(!skipchecksum ) {
+		// Both checksums are zero, which is valid for UDP packets without checksum.
+		if (refHeader->uh_sum != targetHeader->uh_sum) {
+			Assert::Fail(L"UDP checksum mismatch.");
+		}
 	}
 	return TRUE;
 }
@@ -219,6 +223,8 @@ namespace UnitTestExample
             const UINT32 kPayloadLength = 32;
 			char refBuffer[] = "123456789abccba98765432108004500003c000000000111a2d00a0201720a02016c10e104d20028d3090000000000000000000000000000000000000000000000000000000000000000\0";
             UINT32 refSize = (UINT32)strlen(refBuffer);
+            UINT32 mtuLength = refSize >> 1;
+            UINT32 payloadLength = mtuLength - 42; // Ethernet + IPv4 header length
             BYTE loadBuffer[kPacketSize];
             memset((VOID*)loadBuffer, 0, kPacketSize);// = (BYTE*)malloc(refSize / 2);
 			Assert::AreEqual(kPacketSize, refSize / 2);
@@ -232,7 +238,7 @@ namespace UnitTestExample
 			localAdapter.AssingLocal("10.2.1.114", "cb-a9-87-65-43-21", 4321);
             UINT32 packetSize=0;
             BYTE MtuBuffer[2048];
-            localAdapter.FillMTUBufferWithPayload(payload, 32, packetSize, MtuBuffer);
+            localAdapter.MTUFromPayload(payload, payloadLength, MtuBuffer, packetSize, 1);
             Assert::AreEqual(packetSize, (UINT32)kPacketSize);
             
             Assert::IsTrue(CompareEthHeader(loadBuffer, MtuBuffer));
@@ -253,6 +259,10 @@ namespace UnitTestExample
             const UINT32 kPayloadLength = 64;
 			char refBuffer[] = "123456789abc7c1e523ef5d808004500005c000000000111a2b00a0201720a02016c10e104d20048d2c900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\0";
             UINT32 refSize = (UINT32)strlen(refBuffer);
+
+            UINT32 mtuLength = refSize >> 1;
+            UINT32 payloadLength = mtuLength - 42; // Ethernet + IPv4 header length
+
             BYTE loadBuffer[kPacketSize];
             memset((VOID*)loadBuffer, 0, kPacketSize);// = (BYTE*)malloc(refSize / 2);
 			Assert::AreEqual(kPacketSize, refSize / 2);
@@ -266,7 +276,7 @@ namespace UnitTestExample
 			localAdapter.AssingLocal("10.2.1.114", "7C-1E-52-3E-F5-D8", 4321);
             UINT32 packetSize=0;
             BYTE MtuBuffer[2048];
-            localAdapter.FillMTUBufferWithPayload(payload, 64, packetSize, MtuBuffer);
+            localAdapter.MTUFromPayload(payload, payloadLength, MtuBuffer, packetSize, 1);
             Assert::AreEqual(packetSize, (UINT32)kPacketSize);
 			
             Assert::IsTrue(CompareEthHeader(loadBuffer, MtuBuffer));
@@ -274,12 +284,6 @@ namespace UnitTestExample
                 MtuBuffer + sizeof(ETHERNET_HEADER)));
 			Assert::IsTrue(CompareUdpHeader(loadBuffer + sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER), 
                 MtuBuffer + sizeof(ETHERNET_HEADER) + sizeof(IPV4_HEADER)));
-           
-            /*
-            char output[kPacketSize * 2 + 1] = { 0 };
-            bytes_to_hex_string(MtuBuffer, kPacketSize, output, kPacketSize*2+1);
-            Logger::WriteMessage(output);
-            */
 		}
         
         TEST_METHOD(TestDynamicPacket_TTL) {
@@ -304,7 +308,7 @@ namespace UnitTestExample
             
             UINT32 packetSize=0;
             BYTE MtuBuffer[2048];
-            localAdapter.FillMTUBufferWithPayload(purePayload, payloadLength, packetSize, MtuBuffer, 128);
+            localAdapter.MTUFromPayload(purePayload, payloadLength, MtuBuffer, packetSize, 128);
 			Assert::IsTrue(CompareEthHeader(inputMtuBuffer, MtuBuffer));
 			Assert::IsTrue(CompareIpHeader(inputMtuBuffer + sizeof(ETHERNET_HEADER), 
                 MtuBuffer + sizeof(ETHERNET_HEADER)));
@@ -313,7 +317,6 @@ namespace UnitTestExample
 
 			free(inputMtuBuffer);
         }
-
-    };
+   };
 }
 
