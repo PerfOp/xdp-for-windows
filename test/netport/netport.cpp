@@ -246,9 +246,9 @@ BOOL BuildUdpPacket(
     return TRUE;
 }
        
-BOOL AdapterMeta::MTUFromPayload(const UCHAR* payload, UINT32 payloadlength, BYTE* mtuBuffer, UINT32& mtulength, const UINT8 ttl) {
+BOOL NicAdapter::MTUFromPayload(const UCHAR* payload, UINT32 payloadlength, BYTE* mtuBuffer, UINT32& mtulength, const UINT8 ttl) {
     return BuildUdpPacket(
-		Af,
+		addressFamily,
         srcEthAddr, 
         srcIpAddr, 
         srcPort, 
@@ -262,7 +262,7 @@ BOOL AdapterMeta::MTUFromPayload(const UCHAR* payload, UINT32 payloadlength, BYT
         ttl);
 }
         
-BOOL AdapterMeta::fillAdapterInfo(PIP_ADAPTER_INFO padapterinfo) {
+BOOL NicAdapter::fillAdapterInfo(PIP_ADAPTER_INFO padapterinfo) {
 	ifindex = padapterinfo->Index;
 	memcpy(&adapterInfo, padapterinfo, sizeof(IP_ADAPTER_INFO));
 	memcpy(verbSrcIpAddr, padapterinfo->IpAddressList.IpAddress.String, sizeof(verbSrcIpAddr));
@@ -276,7 +276,7 @@ BOOL AdapterMeta::fillAdapterInfo(PIP_ADAPTER_INFO padapterinfo) {
 }
 
 //helpers: query the ip and mac via ifindex
-BOOL AdapterMeta::findAdapterByIP(const char* targetIP, const UINT16 srcport) {
+BOOL NicAdapter::findAdapterByIP(const char* targetIP, const UINT16 srcport) {
     const int ADAPTERNUM = 16;
     PIP_ADAPTER_INFO pAdapterInfo = (PIP_ADAPTER_INFO)&(adapterInfo);
     IP_ADAPTER_INFO pIpAdapterInfo[ADAPTERNUM];
@@ -296,7 +296,7 @@ BOOL AdapterMeta::findAdapterByIP(const char* targetIP, const UINT16 srcport) {
             IP_ADDR_STRING* pIpAddrString = &(cur->IpAddressList);
             if (strcmp(targetIP, pIpAddrString->IpAddress.String) == 0) {
                 fillAdapterInfo(cur);
-				srcPort = srcport;
+                srcPort = srcport;
 
                 printf("ip: %s\n", verbSrcIpAddr);
                 printf("mask: %s\n", pIpAddrString->IpMask.String);
@@ -325,7 +325,7 @@ BOOL AdapterMeta::findAdapterByIP(const char* targetIP, const UINT16 srcport) {
     return TRUE;
 }
 
-BOOL AdapterMeta::InitLocalByIdx(const UINT32 idx, const UINT16 port) {
+BOOL NicAdapter::InitLocalByIdx(const UINT32 idx, const UINT16 port) {
     ULONG bufferSize = 0;
     GetAdaptersAddresses(AF_INET, 0, nullptr, nullptr, &bufferSize);
 
@@ -351,7 +351,7 @@ BOOL AdapterMeta::InitLocalByIdx(const UINT32 idx, const UINT16 port) {
 
     return TRUE;
 }
-BOOL AdapterMeta::InitLocalByIP(const char* ipaddr, const UINT16 port) {
+BOOL NicAdapter::InitLocalByIP(const char* ipaddr, const UINT16 port) {
     if (!findAdapterByIP(ipaddr, port)) {
 		printf("Cannot locate the adapter by ip\n");
         return FALSE;
@@ -359,7 +359,7 @@ BOOL AdapterMeta::InitLocalByIP(const char* ipaddr, const UINT16 port) {
     return identifyLocal();
 }
 
-BOOL AdapterMeta::debug_output() {
+BOOL NicAdapter::debug_output() {
     printf("Debug Output the meta of the Adapter\n");
     printf("ifindex: %d\n", ifindex);
     printf("mtu: %d\n", mtu);
@@ -370,7 +370,7 @@ BOOL AdapterMeta::debug_output() {
     return TRUE;
 }
 
-BOOL AdapterMeta::AssingLocal(const char* ipaddr, const char* ethaddr, UINT16 port) {
+BOOL NicAdapter::AssignLocal(const char* ipaddr, const char* ethaddr, UINT16 port) {
     //const CHAR* Terminator;
 	memcpy(verbSrcIpAddr, ipaddr, sizeof(verbSrcIpAddr));
 
@@ -385,7 +385,7 @@ BOOL AdapterMeta::AssingLocal(const char* ipaddr, const char* ethaddr, UINT16 po
     return TRUE;
 }
 
-BOOL AdapterMeta::SetTarget(const char* ipaddr, const char* ethaddr, UINT16 port) {
+BOOL NicAdapter::SetTarget(const char* ipaddr, const char* ethaddr, UINT16 port) {
 	memcpy(verbDstIpAddr, ipaddr, sizeof(verbDstIpAddr));
     if (ethaddr != NULL) {
         memcpy(verbDstEthAddr, ethaddr, sizeof(verbDstEthAddr));
@@ -402,9 +402,9 @@ BOOL AdapterMeta::SetTarget(const char* ipaddr, const char* ethaddr, UINT16 port
     return TRUE;
 }
         
-BOOL AdapterMeta::identifyLocal(void) {
+BOOL NicAdapter::identifyLocal(void) {
     const CHAR* Terminator;
-    if (!PktStringToInetAddressA(&srcIpAddr, &Af, verbSrcIpAddr)) {
+    if (!PktStringToInetAddressA(&srcIpAddr, &addressFamily, verbSrcIpAddr)) {
         return FALSE;
     }
 
@@ -414,19 +414,19 @@ BOOL AdapterMeta::identifyLocal(void) {
     return TRUE;
 }
 
-BOOL AdapterMeta::identifyTarget(void) {
+BOOL NicAdapter::identifyTarget(void) {
     const CHAR* Terminator;
-    if (!PktStringToInetAddressA(&dstIpAddr, &Af, verbDstIpAddr)) {
+    if (!PktStringToInetAddressA(&dstIpAddr, &addressFamily, verbDstIpAddr)) {
         return FALSE;
     }
-
     if (RtlEthernetStringToAddressA(verbDstEthAddr, &Terminator, (DL_EUI48*)&dstEthAddr)) {
         return FALSE;
     }
+
     return TRUE;
 }
         
-BOOL AdapterMeta::selLocalPort(const UINT16 port) {
+BOOL NicAdapter::selLocalPort(const UINT16 port) {
 	srcPort = port;
     return TRUE;
 }

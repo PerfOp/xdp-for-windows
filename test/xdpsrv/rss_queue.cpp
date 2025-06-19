@@ -7,7 +7,7 @@ MODE mode;
 
 INT g_IfIndex = -1;
 XSK_POLL_MODE g_PollMode;
-AdapterMeta* g_LocalAdapter=NULL;
+NicAdapter* g_LocalAdapter=NULL;
 
 BOOLEAN output_stdout = FALSE;
 
@@ -291,7 +291,7 @@ BOOL RssQueue::initFreeRing() {
 		UINT32 genPacketSize;
 		BYTE MtuBuffer[2048];
 		memset(MtuBuffer, 0, sizeof(MtuBuffer));
-        g_LocalAdapter->MTUFromPayload(this->txPayload, this->payloadsize, MtuBuffer, genPacketSize, DEFAULT_UDP_TTL);
+        g_LocalAdapter->MTUFromPayload(this->txPayload, this->payloadsize, MtuBuffer, genPacketSize, kDefaultUDPTTL);
 
         UINT64 desc = 0;
         for (UINT32 i = 0; i < numDescriptors; i++) {

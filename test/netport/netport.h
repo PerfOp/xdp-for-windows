@@ -278,14 +278,14 @@ extern "C" {
         _Out_ CHAR* out_buffer, 
         _In_ const size_t buffer_size) ;
 
-class AdapterMeta {
+class NicAdapter {
     private:
         UINT32 ifindex;
         UINT32 mtu;
         UINT32 group;
         UINT32 node;
         UINT64 cpuAffinity;
-        ADDRESS_FAMILY Af;
+        ADDRESS_FAMILY addressFamily;
         // Remote value
         INET_ADDR dstIpAddr;
         ETHERNET_ADDRESS dstEthAddr;
@@ -317,7 +317,7 @@ class AdapterMeta {
         BOOL InitLocalByIP(const char* ip, const UINT16 port = 4321);
         BOOL InitLocalByIdx(const UINT32 idx, const UINT16 port = 4321);
         BOOL SetTarget(const char* ipaddr, const char* ethaddr=NULL, UINT16 port=1234);
-        BOOL AssingLocal(const char* ipaddr, const char* ethaddr, UINT16 port);
+        BOOL AssignLocal(const char* ipaddr, const char* ethaddr, UINT16 port);
 
         BOOL MTUFromPayload(const UCHAR* payload, UINT32 payloadlength,
             BYTE* mtuBuffer, UINT32& mtulength,

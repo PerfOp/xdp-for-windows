@@ -70,8 +70,8 @@ PrintRingInfo(
     XSK_RING_INFO_SET InfoSet
 );
 
-class AdapterMeta;
-extern AdapterMeta* g_LocalAdapter;
+class NicAdapter;
+extern NicAdapter* g_LocalAdapter;
 
 UINT32
 RingPairReserve(

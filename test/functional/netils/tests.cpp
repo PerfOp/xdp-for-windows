@@ -233,9 +233,9 @@ namespace UnitTestExample
 
             UCHAR payload[kPayloadLength];
 			memset(payload, 0, sizeof(payload));
-            AdapterMeta localAdapter;
+            NicAdapter localAdapter;
+			localAdapter.AssignLocal("10.2.1.114", "cb-a9-87-65-43-21", 4321);
 			localAdapter.SetTarget("10.2.1.108", "12-34-56-78-9a-bc", 1234);
-			localAdapter.AssingLocal("10.2.1.114", "cb-a9-87-65-43-21", 4321);
             UINT32 packetSize=0;
             BYTE MtuBuffer[2048];
             localAdapter.MTUFromPayload(payload, payloadLength, MtuBuffer, packetSize, 1);
@@ -271,9 +271,9 @@ namespace UnitTestExample
 
             UCHAR payload[kPayloadLength];
 			memset(payload, 0, sizeof(payload));
-            AdapterMeta localAdapter;
+            NicAdapter localAdapter;
+			localAdapter.AssignLocal("10.2.1.114", "7C-1E-52-3E-F5-D8", 4321);
 			localAdapter.SetTarget("10.2.1.108", "12-34-56-78-9a-bc", 1234);
-			localAdapter.AssingLocal("10.2.1.114", "7C-1E-52-3E-F5-D8", 4321);
             UINT32 packetSize=0;
             BYTE MtuBuffer[2048];
             localAdapter.MTUFromPayload(payload, payloadLength, MtuBuffer, packetSize, 1);
@@ -302,9 +302,9 @@ namespace UnitTestExample
             }
 			BYTE* purePayload = inputMtuBuffer + 42; // Skip the first 42 bytes (Ethernet + IPv4 header)
             
-            AdapterMeta localAdapter;
+            NicAdapter localAdapter;
+			localAdapter.AssignLocal("10.12.6.2", "7C-1E-52-23-2a-87", 54791);
 			localAdapter.SetTarget("20.168.56.237", "12-34-56-78-9a-bc", 4567);
-			localAdapter.AssingLocal("10.12.6.2", "7C-1E-52-23-2a-87", 54791);
             
             UINT32 packetSize=0;
             BYTE MtuBuffer[2048];

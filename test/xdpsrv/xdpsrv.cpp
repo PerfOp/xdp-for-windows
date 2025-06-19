@@ -843,7 +843,7 @@ main(
 {
     NetThread* threads;
     UINT32 threadCount;
-	g_LocalAdapter = new AdapterMeta();
+	g_LocalAdapter = new NicAdapter();
 
     ParseArgs(&threads, &threadCount, argc, argv);
 
