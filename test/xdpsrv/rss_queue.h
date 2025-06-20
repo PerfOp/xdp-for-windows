@@ -42,7 +42,7 @@ const UINT16 DEFAULT_DST_PORT = 1234;
 #define DEFAULT_DST_MAC_ADDR "12-34-56-78-9A-BC"
 
 extern INT g_IfIndex;
-extern BOOLEAN output_stdout;
+extern BOOLEAN outputStdout;
 extern CHAR* modestr;
 
 typedef enum {
@@ -52,7 +52,7 @@ typedef enum {
     ModeLat,
 } MODE;
 
-extern MODE mode;
+extern MODE workMode;
 
 typedef enum {
     XdpModeSystem,

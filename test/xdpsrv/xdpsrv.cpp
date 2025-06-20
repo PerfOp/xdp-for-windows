@@ -11,7 +11,7 @@
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
     
-ULONG duration = DEFAULT_DURATION;
+ULONG benchDuration = DEFAULT_DURATION;
 BOOLEAN processDone = FALSE;
 CHAR* modestr;
 HANDLE periodicStatsEvent;
@@ -534,7 +534,7 @@ ParseQueueArgs(
     }
 
 
-    if (mode == ModeLat) {
+    if (workMode == ModeLat) {
         ASSERT_FRE(
             Queue->umemchunkSize - Queue->umemHeadroom >= Queue->txPatternLength + sizeof(UINT64));
 
@@ -652,16 +652,16 @@ ParseArgs(
     }
 
     if (!_stricmp(argv[i], "rx")) {
-        mode = ModeRx;
+        workMode = ModeRx;
     }
     else if (!_stricmp(argv[i], "tx")) {
-        mode = ModeTx;
+        workMode = ModeTx;
     }
     else if (!_stricmp(argv[i], "fwd")) {
-        mode = ModeFwd;
+        workMode = ModeFwd;
     }
     else if (!_stricmp(argv[i], "lat")) {
-        mode = ModeLat;
+        workMode = ModeLat;
     }
     else {
         Usage();
@@ -698,13 +698,13 @@ ParseArgs(
             if (++i >= argc) {
                 Usage();
             }
-            duration = atoi(argv[i]);
+            benchDuration = atoi(argv[i]);
         }
         else if (!strcmp(argv[i], "-v")) {
-            verbose = TRUE;
+            logVerbose = TRUE;
         }
         else if (!strcmp(argv[i], "-o")) {
-            output_stdout = TRUE;
+            outputStdout = TRUE;
         }
         else if (!_stricmp(argv[i], "-lp")) {
             largePages = TRUE;
@@ -791,7 +791,7 @@ SetThreadAffinities(
 
 DWORD
 WINAPI
-DoThread(
+XdpPollingThread(
     LPVOID lpThreadParameter
 )
 {
@@ -803,16 +803,16 @@ DoThread(
     res = SetThreadAffinities(thread);
     ASSERT_FRE(res == S_OK);
 
-    if (mode == ModeRx) {
+    if (workMode == ModeRx) {
         DoRxMode(thread);
     }
-    else if (mode == ModeTx) {
+    else if (workMode == ModeTx) {
         DoTxMode(thread);
     }
-    else if (mode == ModeFwd) {
+    else if (workMode == ModeFwd) {
         DoFwdMode(thread);
     }
-    else if (mode == ModeLat) {
+    else if (workMode == ModeLat) {
         DoLatMode(thread);
     }
 
@@ -828,7 +828,7 @@ ConsoleCtrlHandler(
     UNREFERENCED_PARAMETER(CtrlType);
 
     // Force graceful exit.
-    duration = 0;
+    benchDuration = 0;
     SetEvent(periodicStatsEvent);
 
     return TRUE;
@@ -856,12 +856,12 @@ main(
         threads[tIndex].readyEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
         ASSERT_FRE(threads[tIndex].readyEvent != NULL);
         threads[tIndex].threadHandle =
-            CreateThread(NULL, 0, DoThread, &threads[tIndex], 0, NULL);
+            CreateThread(NULL, 0, XdpPollingThread, &threads[tIndex], 0, NULL);
         ASSERT_FRE(threads[tIndex].threadHandle != NULL);
         WaitForSingleObject(threads[tIndex].readyEvent, INFINITE);
     }
 
-    while (duration-- > 0) {
+    while (benchDuration-- > 0) {
         WaitForSingleObject(periodicStatsEvent, 1000);
         for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
             NetThread* Thread = &threads[tIndex];

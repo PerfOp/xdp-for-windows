@@ -3,13 +3,13 @@
 #include "internal_utils.h"
 #include "highperf_timer.h"
 
-MODE mode;
+MODE workMode;
 
 INT g_IfIndex = -1;
 XSK_POLL_MODE g_PollMode;
 NicAdapter* g_LocalAdapter=NULL;
 
-BOOLEAN output_stdout = FALSE;
+BOOLEAN outputStdout = FALSE;
 
 void PrintRing(
     CHAR* Name,
@@ -298,7 +298,7 @@ BOOL RssQueue::initFreeRing() {
             UINT64* Descriptor = (UINT64*)XskRingGetElement(&this->freeRxRing, i);
             *Descriptor = desc;
 
-            if (mode == ModeTx || mode == ModeLat) {
+            if (workMode == ModeTx || workMode == ModeLat) {
                 memcpy(
                     (UCHAR*)this->umemReg.Address + desc + this->umemHeadroom,
                     MtuBuffer,
@@ -318,7 +318,7 @@ BOOL RssQueue::initFreeRing() {
             UINT64* Descriptor = (UINT64*)XskRingGetElement(&this->freeRxRing, i);
             *Descriptor = desc;
 
-            if (mode == ModeTx || mode == ModeLat) {
+            if (workMode == ModeTx || workMode == ModeLat) {
                 memcpy(
                     (UCHAR*)this->umemReg.Address + desc + this->umemHeadroom,
                     this->txPattern,
@@ -504,7 +504,7 @@ RssQueue::PrintFinalStats()
     printf("%-3s[%d]: avg=%08.3f stddev=%08.3f min=%08.3f max=%08.3f Kpps\n",
         modestr, this->queueId, avg, stdDev, min, max);
 
-    if (mode == ModeLat) {
+    if (workMode == ModeLat) {
         //PrintFinalLatStats(this);
         PrintFinalLatStats();
     }
@@ -669,7 +669,7 @@ RssQueue::readRxPackets(
         printf_verbose("Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
             rxDesc->Address.BaseAddress, rxDesc->Address.Offset, rxDesc->Length);
 
-        if (output_stdout) {
+        if (outputStdout) {
             void* pEthHdr =
                 (void*)((UCHAR*)this->umemReg.Address + rxDesc->Address.BaseAddress + rxDesc->Address.Offset);
             PrintPacketMeta(pEthHdr);

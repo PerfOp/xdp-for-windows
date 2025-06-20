@@ -20,7 +20,7 @@
     fprintf(stderr, __VA_ARGS__)
 
 #define printf_verbose(format, ...) \
-    if (verbose) { LARGE_INTEGER Qpc; QueryPerformanceCounter(&Qpc); printf("Qpc=%llu " format, Qpc.QuadPart, __VA_ARGS__); }
+    if (logVerbose) { LARGE_INTEGER Qpc; QueryPerformanceCounter(&Qpc); printf("Qpc=%llu " format, Qpc.QuadPart, __VA_ARGS__); }
 
 #define ABORT(...) \
     printf_error(__VA_ARGS__); exit(1)
@@ -36,7 +36,7 @@
 
 #define DEFAULT_UDP_DEST_PORT 0
 
-extern BOOLEAN verbose;
+extern BOOLEAN logVerbose;
 extern BOOLEAN largePages;
 extern UINT16 udpDestPort;
 

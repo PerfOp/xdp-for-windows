@@ -2,7 +2,7 @@
 #include "internal_utils.h"
 #include <stdio.h>
 
-BOOLEAN verbose = FALSE;
+BOOLEAN logVerbose = FALSE;
 BOOLEAN largePages = FALSE;
 UINT16 udpDestPort = DEFAULT_UDP_DEST_PORT;
 

@@ -32,7 +32,6 @@ const UINT16 kDefaultUDPTTL = 128;
 
 typedef DL_EUI48 ETHERNET_ADDRESS;
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
