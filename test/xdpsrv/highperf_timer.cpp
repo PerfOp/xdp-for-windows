@@ -187,18 +187,18 @@ INT64 QpcToUs64(INT64 Qpc, INT64 QpcFrequency)
 }
 
 
-void sTokenBucket::init_token_bucket(int init_capacity, int init_refill_rate) {
+void sTokenBucket::InitTokenbucket(int init_capacity, int init_refill_rate) {
     capacity = init_capacity;
     tokens = init_capacity;
     refill_rate = init_refill_rate;
-    QueryPerformanceFrequency(&(FreqQpc));
+    QueryPerformanceFrequency(&(freqQpc));
     QueryPerformanceCounter(&(lastCounter));
 	//bucket->last_refill = time(NULL);
 }
 void sTokenBucket::refill_tokens() {
     LARGE_INTEGER now;
     QueryPerformanceCounter(&now);
-    INT64 elapsedns = QpcToUs64(now.QuadPart - lastCounter.QuadPart, FreqQpc.QuadPart);
+    INT64 elapsedns = QpcToUs64(now.QuadPart - lastCounter.QuadPart, freqQpc.QuadPart);
     int new_tokens = (int)((double)(elapsedns / 1e6) * (double)refill_rate);
 
     if (new_tokens > 0) {
@@ -207,8 +207,7 @@ void sTokenBucket::refill_tokens() {
     }
 }
 
-int sTokenBucket::consume_tokens(int applytokens) {
-
+int sTokenBucket::ConsumeTokens(int applytokens) {
     refill_tokens();
 
     if (tokens >= applytokens) {

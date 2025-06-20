@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
+#include "highperf_timer.h"
 
 #define DEFAULT_UMEM_SIZE 65536
 #define DEFAULT_UMEM_CHUNK_SIZE 4096
@@ -83,6 +84,7 @@ RingPairReserve(
 class RssQueue {
 private:
     std::string memPath;
+    sTokenBucket reqBucket;
 public:
     INT queueId;
     HANDLE sock;
@@ -101,7 +103,7 @@ public:
     UINT32 latSamplesCount;
     UINT32 latIndex;
     XSK_POLL_MODE pollMode;
-    uint64_t reqPPS{ 0 };
+    int32_t reqPPS{ 0 };
 
     ULONG payloadsize;
 

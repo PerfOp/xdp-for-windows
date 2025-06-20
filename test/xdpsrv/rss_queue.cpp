@@ -619,17 +619,38 @@ RssQueue::ProcessTx(
         }
     }
 
-    available =
-        RingPairReserve(
-            &this->freeRxRing, &consumerIndex, &this->txRing, &producerIndex, this->iobatchsize);
-    if (available > 0) {
-        //WriteTxPackets(this, consumerIndex, producerIndex, available);
-        this->writeTxPackets(consumerIndex, producerIndex, available);
-        XskRingConsumerRelease(&this->freeRxRing, available);
-        XskRingProducerSubmit(&this->txRing, available);
+    if (reqBucket.IsActivated() ) {
+        //
+        // If the request bucket is activated, we can process TX packets
+        // immediately without waiting for the completion ring to be filled.
+        if (reqBucket.ConsumeTokens(1)) {
+            available =
+                RingPairReserve(
+                    &this->freeRxRing, &consumerIndex, &this->txRing, &producerIndex, 1);
+            if (available > 0) {
+                //WriteTxPackets(this, consumerIndex, producerIndex, available);
+                this->writeTxPackets(consumerIndex, producerIndex, available);
+                XskRingConsumerRelease(&this->freeRxRing, available);
+                XskRingProducerSubmit(&this->txRing, available);
 
-        processed += available;
-        notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+                processed += available;
+                notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+            }
+        }
+    }
+    else {
+        available =
+            RingPairReserve(
+                &this->freeRxRing, &consumerIndex, &this->txRing, &producerIndex, this->iobatchsize);
+        if (available > 0) {
+            //WriteTxPackets(this, consumerIndex, producerIndex, available);
+            this->writeTxPackets(consumerIndex, producerIndex, available);
+            XskRingConsumerRelease(&this->freeRxRing, available);
+            XskRingProducerSubmit(&this->txRing, available);
+
+            processed += available;
+            notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+        }
     }
 
     if (Wait &&
@@ -1049,6 +1070,10 @@ void RssQueue::SetupSock(INT IfIndex){
 	this->initFreeRing();
 
     this->attachXdpProgram(IfIndex);
+
+    if(reqPPS> 0) {
+        reqBucket.InitTokenbucket(1, reqPPS);
+    }
 }
 
 

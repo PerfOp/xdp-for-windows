@@ -7,7 +7,7 @@
 #include "internal_utils.h"
 #include "xdpsrv.h"
 #include "netport.h"
-#include "highperf_timer.h"
+#include "work_load.h"
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
     
