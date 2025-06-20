@@ -29,6 +29,8 @@
         
 const int kMacAddrLength = 18;
 const UINT16 kDefaultUDPTTL = 128;
+const UINT16 kDefaultDstPort = 1234;
+const UINT16 kDefaultSrcPort = 4321;
 
 typedef DL_EUI48 ETHERNET_ADDRESS;
 
@@ -279,7 +281,7 @@ extern "C" {
 
 class NicAdapter {
     private:
-        UINT32 ifindex;
+        INT ifindex;
         UINT32 mtu;
         UINT32 group;
         UINT32 node;
@@ -310,13 +312,26 @@ class NicAdapter {
 #endif
     public:
 		// Apis for set src and dst ip and mac
-        UINT32 GetIfindex() {
+        NicAdapter() : ifindex(-1), mtu(0), group(0), node(0), cpuAffinity(0), addressFamily(AF_INET),
+            packetSize(0), dstPort(kDefaultDstPort), srcPort(kDefaultSrcPort) {
+            RtlZeroMemory(&dstIpAddr, sizeof(dstIpAddr));
+            RtlZeroMemory(&dstEthAddr, sizeof(dstEthAddr));
+            RtlZeroMemory(&srcIpAddr, sizeof(srcIpAddr));
+            RtlZeroMemory(&srcEthAddr, sizeof(srcEthAddr));
+			RtlZeroMemory(&adapterInfo, sizeof(adapterInfo));
+            RtlZeroMemory(verbDstEthAddr, sizeof(verbDstEthAddr));
+            RtlZeroMemory(verbDstIpAddr, sizeof(verbDstIpAddr));
+            RtlZeroMemory(verbSrcEthAddr, sizeof(verbSrcEthAddr));
+			RtlZeroMemory(verbSrcIpAddr, sizeof(verbSrcIpAddr));
+        }
+        INT GetIfindex() {
             return ifindex;
         }
-        BOOL InitLocalByIP(const char* ip, const UINT16 port = 4321);
-        BOOL InitLocalByIdx(const UINT32 idx, const UINT16 port = 4321);
-        BOOL SetTarget(const char* ipaddr, const char* ethaddr=NULL, UINT16 port=1234);
-        BOOL AssignLocal(const char* ipaddr, const char* ethaddr, UINT16 port);
+        BOOL InitLocalByIP(const char* ip, const UINT16 port = kDefaultSrcPort);
+        BOOL InitLocalByIdx(const UINT32 idx, const UINT16 port = kDefaultSrcPort);
+        BOOL AssignLocal(const char* ipaddr, const char* ethaddr, UINT16 port=kDefaultSrcPort);
+        
+        BOOL SetTarget(const char* ipaddr, const char* ethaddr=NULL, UINT16 port=kDefaultDstPort);
 
         BOOL MTUFromPayload(const UCHAR* payload, UINT32 payloadlength,
             BYTE* mtuBuffer, UINT32& mtulength,
@@ -334,8 +349,6 @@ class NicAdapter {
 };
 
 VOID* InitUdpPacket(CHAR* srcETH, CHAR* srcIP, UINT16 srcPort, CHAR* dstETH, CHAR* dstIP, UINT16 dstPort, UINT32 PayloadLength, UINT32& bufferLength, const UINT8 ttl=1) ;
-
-
 
 #ifdef __cplusplus
 } // extern "C"

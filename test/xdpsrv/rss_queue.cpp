@@ -5,7 +5,6 @@
 
 MODE workMode;
 
-INT g_IfIndex = -1;
 XSK_POLL_MODE g_PollMode;
 NicAdapter* g_LocalAdapter=NULL;
 

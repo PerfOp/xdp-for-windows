@@ -38,10 +38,9 @@ const uint64_t DEFAULT_REQ_PPS = 0;
 
 #define WAIT_DRIVER_TIMEOUT_MS 1050
 #define STATS_ARRAY_SIZE 60
-const UINT16 DEFAULT_DST_PORT = 1234;
 #define DEFAULT_DST_MAC_ADDR "12-34-56-78-9A-BC"
 
-extern INT g_IfIndex;
+//extern INT g_IfIndex;
 extern BOOLEAN outputStdout;
 extern CHAR* modestr;
 

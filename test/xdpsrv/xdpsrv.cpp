@@ -192,7 +192,8 @@ DoRxMode(
 
         queue->flags.rx = TRUE;
         //SetupSock(g_IfIndex, queue);
-        queue->SetupSock(g_IfIndex);
+        //queue->SetupSock(g_IfIndex);
+        queue->SetupSock(g_LocalAdapter->GetIfindex());
         queue->lastTick = GetTickCount64();
     }
 
@@ -225,7 +226,8 @@ DoTxMode(
 
         queue->flags.tx = TRUE;
         //SetupSock(g_IfIndex, queue);
-        queue->SetupSock(g_IfIndex);
+        //queue->SetupSock(g_IfIndex);
+        queue->SetupSock(g_LocalAdapter->GetIfindex());
         queue->lastTick = GetTickCount64();
     }
 
@@ -260,7 +262,8 @@ DoFwdMode(
         queue->flags.rx = TRUE;
         queue->flags.tx = TRUE;
         //SetupSock(g_IfIndex, queue);
-        queue->SetupSock(g_IfIndex);
+        //queue->SetupSock(g_IfIndex);
+        queue->SetupSock(g_LocalAdapter->GetIfindex());
         queue->lastTick = GetTickCount64();
     }
 
@@ -295,7 +298,8 @@ DoLatMode(
         queue->flags.rx = TRUE;
         queue->flags.tx = TRUE;
         //SetupSock(g_IfIndex, queue);
-        queue->SetupSock(g_IfIndex);
+        //queue->SetupSock(g_IfIndex);
+        queue->SetupSock(g_LocalAdapter->GetIfindex());
 
         queue->IssueRequest();
     }
@@ -465,7 +469,7 @@ ParseQueueArgs(
                 Usage();
             }
             dstipidx = i;
-            g_LocalAdapter->SetTarget(argv[i], DEFAULT_DST_MAC_ADDR, DEFAULT_DST_PORT);
+            g_LocalAdapter->SetTarget(argv[i], DEFAULT_DST_MAC_ADDR);
         }
         else if (!strcmp(argv[i], "-dstport")) {
             if (++i >= argc) {
@@ -673,15 +677,20 @@ ParseArgs(
 		if (++i >= argc) {
 			Usage();
 		}
-		g_IfIndex = atoi(argv[i++]);
-		g_LocalAdapter->InitLocalByIdx(g_IfIndex, 4321);
+		if (!g_LocalAdapter->InitLocalByIdx(atoi(argv[i++]), 4321)) {
+			printf_error("Failed to initialize local adapter by ifindex %d\n", g_LocalAdapter->GetIfindex());
+			ABORT("Check if the interface is up and XDP is enabled on it.\n");
+			//Usage();
+		}
     }
     else if (!strcmp(argv[i], "-srcip")) {
 		if (++i >= argc) {
 			Usage();
 		}
-		g_LocalAdapter->InitLocalByIP(argv[i++], 4321);
-        g_IfIndex = g_LocalAdapter->GetIfindex();
+        if (!g_LocalAdapter->InitLocalByIP(argv[i++], 4321)) {
+           printf_error("Failed to initialize local adapter by srcip %s\n", argv[i]);
+           ABORT("Check if the interface is up and XDP is enabled on it.\n");
+        }
     }
 
     while (i < argc) {
@@ -717,7 +726,7 @@ ParseArgs(
         ++i;
     }
 
-    if (g_IfIndex == -1) {
+    if (g_LocalAdapter->GetIfindex() == -1) {
         Usage();
     }
 

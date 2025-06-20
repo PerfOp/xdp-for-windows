@@ -342,14 +342,15 @@ BOOL NicAdapter::InitLocalByIdx(const UINT32 idx, const UINT16 port) {
                     this->InitLocalByIP(ipStr, port);
                 }
                 this->ifindex = idx;
-                break;
+				free(adapterAddresses);
+                return TRUE;
             }
         }
     }
 
-    free(adapterAddresses);
+	free(adapterAddresses);
 
-    return TRUE;
+    return FALSE;
 }
 BOOL NicAdapter::InitLocalByIP(const char* ipaddr, const UINT16 port) {
     if (!findAdapterByIP(ipaddr, port)) {
