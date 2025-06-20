@@ -48,3 +48,4 @@ QpcToUs64(
 );
 */
 void PrintPacketMeta(_In_ void* buffer);
+bool parseAddress(const char* input, char* ip_out, int& port_out);

@@ -75,14 +75,13 @@ CHAR* HELP =
 "                      Default: off\n"
 "   -tx_inspect        Inspect RX and FWD frames from the local TX path\n"
 "                      Default: off\n"
-"   -dstip             Destination: host ip \n"
-"   -dstport           Destination: host port, Please use -dstip to assign destination IP before -dstmac \n"
+"   -dst               Destination: host ip and port \n"
 "   -dstmac            Destination: host mac, not necessary, should check with the switch. \n"
 "   -tx_payload        Pattern for the payload to TX, in hexadecimal.\n"
-"   -tx_pattern        Pattern for the leading bytes of TX, in hexadecimal.\n"
-"                      The pktcmd.exe tool outputs hexadecimal headers. Any\n"
-"                      trailing bytes in the XSK buffer are set to zero\n"
-"                      Default: \"\"\n"
+//"   -tx_pattern        Pattern for the leading bytes of TX, in hexadecimal.\n"
+//"                      The pktcmd.exe tool outputs hexadecimal headers. Any\n"
+//"                      trailing bytes in the XSK buffer are set to zero\n"
+//"                      Default: \"\"\n"
 "   -lat_count         Number of latency samples to collect\n"
 "                      Default: " STR_OF(DEFAULT_LAT_COUNT) "\n"
 
@@ -464,22 +463,18 @@ ParseQueueArgs(
         else if (!strcmp(argv[i], "-tx_inspect")) {
             Queue->flags.txInspect = TRUE;
         }
-        else if (!strcmp(argv[i], "-dstip")) {
+        else if (!strcmp(argv[i], "-dst")) {
             if (++i >= argc) {
                 Usage();
             }
-            dstipidx = i;
-            g_LocalAdapter->SetTarget(argv[i], DEFAULT_DST_MAC_ADDR);
-        }
-        else if (!strcmp(argv[i], "-dstport")) {
-            if (++i >= argc) {
-                Usage();
-            }
-			UINT16 udstport = (UINT16) atoi(argv[i]);
-            if (dstipidx > 0) {
-                g_LocalAdapter->SetTarget(argv[dstipidx], DEFAULT_DST_MAC_ADDR, udstport);
+			char ip_out[64] = { 0 };
+            int port_out = 0;
+            if (parseAddress(argv[i], ip_out, port_out)) {
+				dstipidx = i;
+				g_LocalAdapter->SetTarget(ip_out, DEFAULT_DST_MAC_ADDR, (UINT16)port_out);
             }
             else {
+				printf("Please input the valid dst machine!\n");
                 Usage();
             }
         }
@@ -488,12 +483,21 @@ ParseQueueArgs(
                 Usage();
             }
             if (dstipidx > 0) {
-                g_LocalAdapter->SetTarget(argv[dstipidx], argv[i], 4567);
+				char ip_out[64] = { 0 };
+				int port_out = 0;
+				if (parseAddress(argv[dstipidx], ip_out, port_out)) {
+                    g_LocalAdapter->SetTarget(ip_out, argv[i], (UINT16)port_out);
+                }
+                else {
+					printf("Please input the valid dst machine!\n");
+					Usage();
+                }
             }
             else {
                 Usage();
             }
         }
+        /*
         else if (!strcmp(argv[i], "-tx_pattern")) {
             if (++i >= argc) {
                 Usage();
@@ -505,6 +509,7 @@ ParseQueueArgs(
             ASSERT_FRE(Queue->txPattern != NULL);
             HexStringToByte(Queue->txPattern, Queue->txPatternLength, argv[i]);
         }
+        */
         else if (!strcmp(argv[i], "-tx_payload")) {
             if (++i >= argc) {
                 Usage();
