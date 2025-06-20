@@ -347,7 +347,7 @@ BOOL NicAdapter::InitLocalByIdx(const UINT32 idx, const UINT16 port) {
             }
         }
     }
-
+	printf("No adapter found with index %u, please use an emuratable ifindex\n", idx);
 	free(adapterAddresses);
 
     return FALSE;

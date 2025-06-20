@@ -509,7 +509,10 @@ ParseQueueArgs(
             if (++i >= argc) {
                 Usage();
             }
-            ASSERT_FRE((strlen(argv[i]) % 2) == 0);
+            if ((strlen(argv[i]) % 2) != 0) {
+                printf_error("Invalid tx_payload argument: %s\n", argv[i]);
+				ABORT("The tx_payload must be a hexadecimal string with an even number of characters.\n");
+            }
             Queue->payloadsize = (UINT32)strlen(argv[i])>>1;
 			Queue->txPayload = (UCHAR*)malloc(Queue->payloadsize);
             ASSERT_FRE(Queue->txPayload != NULL);
