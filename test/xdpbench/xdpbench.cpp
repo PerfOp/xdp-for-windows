@@ -36,6 +36,8 @@ CHAR* HELP =
 "                      Default: " STR_OF(DEFAULT_UMEM_HEADROOM) "\n"
 "   -reqpps <reqpps>   The rate for sending requests(per second)\n"
 "                      Default: " STR_OF(DEFAULT_REQ_RATE) "\n"
+"   -reqsamples <reqsamples>   The total count for sending requests, then trigger latency output\n"
+"                      Default: " STR_OF(DEFAULT_REQ_SAMPLES) "\n"
 "   -reqbatch          The  (in packets) of the File to benchmark throughput\n"
 "                      Default: " STR_OF(DEFAULT_REQ_BATCH) "\n"
 "   -waitbatch         The waitbatch is valid for up mode, ack when receiving every waitbatch frames\n"
@@ -157,6 +159,7 @@ typedef struct {
     INT64 * latSamples;
     //huajianwang: storing the maximum frame order in receiving batch of frames.
     UINT32* orderSamples;
+    double recvKpps;
     //-huajianwang:eelat
     UINT32 latSamplesCount;
     UINT32 latIndex;
@@ -195,9 +198,11 @@ typedef struct {
 
     UINT32 reqBatch;
     UINT32 reqPPS;
-    UINT32 sent;
+    UINT32 reqSamples;
+    UINT32 sentInBatch;
     UINT32 received;
     UINT64 doneSamplesOnTxMode;
+    bool bShouldExit;
 	// -huajianwang: parameter for benchmarking download and upload latency.
     // only valid for 
     // 1) download serving mode for generating a group of packets as download workload.
@@ -211,6 +216,24 @@ typedef struct {
     //-huajianwang:eelat
 } MY_QUEUE;
 
+void InitQueueSamples(
+    MY_QUEUE* Queue
+) {
+    Queue->latIndex = 0;
+    if (Queue->latSamples == nullptr) {
+        Queue->latSamples = (INT64*)malloc(Queue->latSamplesCount * sizeof(*Queue->latSamples));
+        ASSERT_FRE(Queue->latSamples != NULL);
+    }
+    ZeroMemory(Queue->latSamples, Queue->latSamplesCount * sizeof(*Queue->latSamples));
+
+    //huajianwang:eelat 
+    if (Queue->orderSamples == nullptr) {
+        Queue->orderSamples = (UINT32*)malloc(Queue->latSamplesCount * sizeof(*Queue->orderSamples));
+        ASSERT_FRE(Queue->orderSamples != NULL);
+    }
+    ZeroMemory(Queue->orderSamples, Queue->latSamplesCount * sizeof(*Queue->orderSamples));
+    //-huajianwang:eelat 
+}
 typedef struct {
     HANDLE threadHandle;
     HANDLE readyEvent;
@@ -240,7 +263,7 @@ LARGE_INTEGER g_FreqQpc;
 //huajianwang: used to store the time stamp and order to mark the TX packets as the download workload.
 // These two values are both from the download request from the remote client matchine.
 LONGLONG g_reqTimeStamp = 0;
-UINT64 g_downReqOrder = 0;
+INT64 g_downReqOrder = 0;
 //-huajianwang:eelat
 
 UINT32
@@ -659,6 +682,8 @@ ProcessPeriodicStats(
     packetDiff = packetCount - Queue->lastPacketCount;
     kpps = (packetDiff) ? (double)packetDiff / tickDiff : 0;
 
+    Queue->recvKpps = kpps;
+
     if (Queue->flags.periodicStats) {
         XSK_STATISTICS stats;
         UINT32 optSize = sizeof(stats);
@@ -759,9 +784,10 @@ PrintFinalLatStats(
                           std::to_string(i) + "," + std::to_string(Queue->orderSamples[i]) + "\n";
         buffer.insert(buffer.end(), row.begin(), row.end());
     }
-    
+   
+    /*
     // davidxie: write to buffer
-    // Payload need to >= 20 bytes (16 byte will wrap around to 0 beyond 65535)
+    // Payload need to >= 20 bytes (16 byte will wrap around to 0 beyond 65535)/*
     FILE* file;
     if (fopen_s(&file, "xdpbench_counters.csv", "wb") != 0) {
         printf("Failed to open the xdpbench_counters.csv file for writing\n");
@@ -776,6 +802,7 @@ PrintFinalLatStats(
 
     // Close the text file
     fclose(file);
+    */
     
     qsort(Queue->latSamples, Queue->latIndex, sizeof(*Queue->latSamples), LatCmp);
        
@@ -805,6 +832,54 @@ PrintFinalLatStats(
         Queue->ackBatch,
         maxRecvOrder);
 
+    printf("9999 @ %u\n", (UINT32)(Queue->latIndex * 0.9999));
+
+
+    SYSTEMTIME st;
+    GetLocalTime(&st);
+    //
+    char runname[100];
+    int ret = sprintf_s(runname, sizeof(runname), "%04d%02d%02d%02d%02d%02d",
+        st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+
+    if (ret > 0) {
+
+        //
+        FILE* fp = NULL;
+        char filename[] = "latencies.csv";
+        fopen_s(&fp, filename, "r");
+        if (fp) {
+            fclose(fp);
+            errno_t err = fopen_s(&fp, filename, "a");
+            if (err != 0 || fp == NULL) {
+                printf("faile to export file latencies.csv\n");
+            }
+        }
+        else {
+            errno_t err = fopen_s(&fp, filename, "w");
+            if (err == 0 && fp != NULL) {
+                fprintf(fp, "runname,kbps,p50,p90,p99,p999,p9999,p99999,p999999\n");
+            }
+        }
+
+        if (fp) {
+            fprintf(fp, "%s,%u,%llu,%llu,%llu,%llu,%llu,%llu,%llu\n",
+                runname,
+                (uint32_t)(Queue->recvKpps*1000),
+                Queue->latSamples[(UINT32)(Queue->latIndex * 0.5)],
+                Queue->latSamples[(UINT32)(Queue->latIndex * 0.9)],
+                Queue->latSamples[(UINT32)(Queue->latIndex * 0.99)],
+                Queue->latSamples[(UINT32)(Queue->latIndex * 0.999)],
+                Queue->latSamples[(UINT32)(Queue->latIndex * 0.9999)],
+                Queue->latSamples[(UINT32)(Queue->latIndex * 0.99999)],
+                Queue->latSamples[(UINT32)(Queue->latIndex * 0.999999)]
+            );
+
+            fclose(fp);
+        }
+    }
+
+    /*
     // If latIndex >= 1,000,000 - 1, print out first pkt loss percentiles for first 1,000,000 values, then print out total pkt loss
     if (Queue->latIndex >= 1000000 - 1)
     {
@@ -843,6 +918,7 @@ PrintFinalLatStats(
     } else {
         printf("Received less than 1 million samples, will only show pkt loss percentiles for entire samples\n");
     }
+    */
     
     //huajianwang:eelat
     qsort(Queue->orderSamples, Queue->latIndex, sizeof(*Queue->orderSamples), batchCmp);
@@ -1083,25 +1159,28 @@ ReadRxPacketsForLatency(
         INT64 UNALIGNED* Timestamp = (INT64 UNALIGNED*)
             ((CHAR*)Queue->umemReg.Address + rxDesc->Address.BaseAddress + rxDesc->Address.Offset + 42);
         end = *Timestamp;
-        /*
-        packetorder = Timestamp[1];
-        UINT32 idx = (UINT32)packetorder;
-        */
-        UINT32 idx = (UINT32)Timestamp[1];
-        if (idx < Queue->latSamplesCount) {
-            if (idx > Queue->latIndex) {
-                Queue->latIndex = idx;
-            }
-            Queue->orderSamples[idx]++;
-            //if (Queue->orderSamples[idx] == Queue->fpg)
-            {
-                LARGE_INTEGER now;
-                QueryPerformanceCounter(&now);
-				Queue->latSamples[idx] = max(now.QuadPart - end, Queue->latSamples[idx]);
-                //printf("record the latency for the %d th files %lld us\n", idx, QpcToUs64(Queue->latSamples[idx], g_FreqQpc.QuadPart));
-            }
+        if (Timestamp[1] == -1) {
+            //Find a finalizer packet to export the latency
+			PrintFinalLatStats(Queue);
+            InitQueueSamples(Queue);
         }
-        Queue->received++;
+        else {
+            UINT32 idx = (UINT32)Timestamp[1];
+            if (idx < Queue->latSamplesCount) {
+                if (idx > Queue->latIndex) {
+                    Queue->latIndex = idx;
+                }
+                Queue->orderSamples[idx]++;
+                //if (Queue->orderSamples[idx] == Queue->fpg)
+                {
+                    LARGE_INTEGER now;
+                    QueryPerformanceCounter(&now);
+                    Queue->latSamples[idx] = max(now.QuadPart - end, Queue->latSamples[idx]);
+                    //printf("record the latency for the %d th files %lld us\n", idx, QpcToUs64(Queue->latSamples[idx], g_FreqQpc.QuadPart));
+                }
+            }
+			Queue->received++;
+        }
         //-huajianwang:eelat
 
         UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, FreeProducerIndex++);
@@ -1303,6 +1382,8 @@ DoRxMode(
         queue->flags.rx = TRUE;
         SetupSock(ifindex, queue);
         queue->lastTick = GetTickCount64();
+
+		InitQueueSamples(queue);
     }
 
     printf("Receiving...\n");
@@ -1335,7 +1416,7 @@ WriteTxPackets(
     UINT32 Count
 )
 {
-	if (Queue->sent == 0) {
+	if (Queue->sentInBatch == 0) {
 		// LONGLONG prev = Thread->queues[qIndex].sendStartMark.QuadPart;
 		QueryPerformanceCounter(&(Queue->sendStartMark));
 		// printf("From last %lld us\n", QpcToUs64((Thread->queues[qIndex].sendStartMark.QuadPart - prev), g_FreqQpc.QuadPart));
@@ -1356,8 +1437,15 @@ WriteTxPackets(
         INT64 UNALIGNED* Timestamp = (INT64 UNALIGNED*)
             ((CHAR*)Queue->umemReg.Address + txDesc->Address.BaseAddress + txDesc->Address.Offset + 42);
         *Timestamp = Queue->sendStartMark.QuadPart;
-        Timestamp[1] = Queue->doneSamplesOnTxMode;
-        Queue->sent++;
+        if (Queue->doneSamplesOnTxMode > Queue->reqSamples) {
+            Timestamp[1] = -1;
+            printf("Send a finalizer packet\n");
+            Queue->bShouldExit = true;
+        }
+        else {
+            Timestamp[1] = Queue->doneSamplesOnTxMode;
+        }
+        Queue->sentInBatch++;
         //-huajianwang:eelat
 
         printf_verbose("Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
@@ -1395,7 +1483,7 @@ WriteTxDownPackets(
 		// * Write the id of the file into the packet.
         *Timestamp = g_reqTimeStamp;
         Timestamp[1] = g_downReqOrder;
-        Queue->sent++;
+        Queue->sentInBatch++;
 
         printf_verbose("Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
             txDesc->Address.BaseAddress, txDesc->Address.Offset, txDesc->Length);
@@ -1526,27 +1614,31 @@ DoTxModeTokenBucket(
 			}
 			else {
 				//huajianwang:eelat
-				if (Thread->queues[qIndex].sent == 0) {
+				if (Thread->queues[qIndex].sentInBatch == 0) {
 					if (Thread->queues[qIndex].filebucket.consume_tokens( 1) != 0) {
 						Thread->queues[qIndex].sending = true;
 					}
 				}
 				if (Thread->queues[qIndex].sending) {
 					//if ((Thread->queues[qIndex].packetbucket.consume_tokens(Thread->queues[qIndex].iobatchsize) != 0)) {
-						if (Thread->queues[qIndex].sent < Thread->queues[qIndex].reqBatch) {
+						if (Thread->queues[qIndex].sentInBatch < Thread->queues[qIndex].reqBatch) {
 							Processed |= ProcessTx(&Thread->queues[qIndex], Thread->wait);
 						}
 					//}
 				}
-				if (Thread->queues[qIndex].sent >= Thread->queues[qIndex].reqBatch) {
+				if (Thread->queues[qIndex].sentInBatch >= Thread->queues[qIndex].reqBatch) {
 					LARGE_INTEGER now;
 					QueryPerformanceCounter(&now);
 					Thread->queues[qIndex].sending = false;
-					Thread->queues[qIndex].sent = 0;
+					Thread->queues[qIndex].sentInBatch = 0;
 					Thread->queues[qIndex].doneSamplesOnTxMode++;
-					if (Thread->queues[qIndex].doneSamplesOnTxMode % 10000 == 0) {
+					if (Thread->queues[qIndex].doneSamplesOnTxMode % 100000 == 0) {
 						printf("Sent %llu samples\n", Thread->queues[qIndex].doneSamplesOnTxMode);
 					}
+                    //if (Thread->queues[qIndex].doneSamplesOnTxMode == Thread->queues[qIndex].reqSamples+1) {
+                    if (Thread->queues[qIndex].bShouldExit) {
+                        ExitProcess(0);
+                    }
 				}
 				/*
 				if (Thread->queues[qIndex].received < Thread->queues[qIndex].frameperfile) {
@@ -2215,6 +2307,8 @@ ParseQueueArgs(
     Queue->waitBatch = DEFAULT_WAIT_BATCH;
     Queue->reqBatch = DEFAULT_REQ_BATCH;
     Queue->reqPPS = DEFAULT_REQ_RATE;
+    Queue->reqSamples = DEFAULT_REQ_SAMPLES;
+    Queue->bShouldExit = false;
     //Queue->fpg = 1;
     //-huajianwang:eelat
 
@@ -2265,12 +2359,18 @@ ParseQueueArgs(
             }
             Queue->reqPPS = atoi(argv[i]);
         }
+        else if (!strcmp(argv[i], "-reqsamples")) {
+            if (++i >= argc) {
+                Usage();
+            }
+            Queue->reqSamples = atoi(argv[i]);
+        }
         else if (!strcmp(argv[i], "-reqbatch")) {
             if (++i >= argc) {
                 Usage();
             }
             Queue->reqBatch = atoi(argv[i]);
-            Queue->sent = 0;
+            Queue->sentInBatch = 0;
             Queue->received = 0;
             Queue->doneSamplesOnTxMode = 0;
             //-huajianwang:eelat
@@ -2393,6 +2493,7 @@ ParseQueueArgs(
         ASSERT_FRE(
             Queue->umemchunksize - Queue->umemheadroom >= Queue->txPatternLength + sizeof(UINT64));
 
+        /*
         Queue->latSamples = (INT64 *)malloc(Queue->latSamplesCount * sizeof(*Queue->latSamples));
         ASSERT_FRE(Queue->latSamples != NULL);
         ZeroMemory(Queue->latSamples, Queue->latSamplesCount * sizeof(*Queue->latSamples));
@@ -2402,6 +2503,8 @@ ParseQueueArgs(
         ASSERT_FRE(Queue->orderSamples != NULL);
         ZeroMemory(Queue->orderSamples, Queue->latSamplesCount * sizeof(*Queue->orderSamples));
         //-huajianwang:eelat 
+        */
+        InitQueueSamples(Queue);
     }
 }
 

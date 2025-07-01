@@ -49,6 +49,7 @@
 #define DEFAULT_WAIT_BATCH 1
 #define DEFAULT_REQ_RATE 0
 #define DEFAULT_FRAME_RATE 10000
+#define DEFAULT_REQ_SAMPLES 2000000
 //-huajianwang:eelat
 
 #define printf_error(...) \
