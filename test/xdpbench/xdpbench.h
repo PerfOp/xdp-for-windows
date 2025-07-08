@@ -51,8 +51,8 @@
 #define DEFAULT_FRAME_RATE 10000
 #define DEFAULT_REQ_SAMPLES 2000000
 
-const int kResetLatencyCounterMark = -1;
-const int kFinalPacketMark = -1;
+const INT64 kResetLatencyCounterMark = -1;
+const INT64 kFinalPacketMark = -1;
 //-huajianwang:eelat
 
 #define printf_error(...) \

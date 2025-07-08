@@ -1067,7 +1067,7 @@ WriteFillPackets(
 }
 
 //Utils: Read the packet buffer from RX ring to cache the timestamp and request order for other forward actions.
-VOID
+BOOLEAN
 ReadRxPacketsTimeStamp(
 	MY_QUEUE * Queue,
 	UINT32 RxConsumerIndex,
@@ -1075,6 +1075,7 @@ ReadRxPacketsTimeStamp(
 	UINT32 Count
 )
 {
+	BOOLEAN finalReq = FALSE;
 	for (UINT32 i = 0; i < Count; i++) {
 		XSK_BUFFER_DESCRIPTOR* rxDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&Queue->rxRing, RxConsumerIndex++);
 
@@ -1090,7 +1091,10 @@ ReadRxPacketsTimeStamp(
 		g_downReqOrder = Timestamp[1];
 		//bLastReqPacket = bLastReqPacket || (Timestamp[2] == kFinalPacketMark);
 		//printf("====%lld us\n", QpcToUs64(cur, g_FreqQpc.QuadPart));
-		// printf("====%lld th requests\n", g_downReqOrder);
+		if (Timestamp[2] == kFinalPacketMark) {
+			//printf("Final\n");
+			finalReq = TRUE;
+		}
 		//-huajianwang:eelat
 
 		UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, FreeProducerIndex++);
@@ -1099,6 +1103,7 @@ ReadRxPacketsTimeStamp(
 		printf_verbose("Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
 			rxDesc->Address.BaseAddress, rxDesc->Address.Offset, rxDesc->Length);
 	}
+	return finalReq;
 }
 
 VOID
@@ -1191,7 +1196,7 @@ ProcessRxAsReq(
 		RingPairReserve(
 			&Queue->rxRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
 	if (available > 0) {
-		ReadRxPacketsTimeStamp(Queue, consumerIndex, producerIndex, available);
+		BOOLEAN startRsp=ReadRxPacketsTimeStamp(Queue, consumerIndex, producerIndex, available);
 		XskRingConsumerRelease(&Queue->rxRing, available);
 		XskRingProducerSubmit(&Queue->freeRing, available);
 
@@ -1205,7 +1210,9 @@ ProcessRxAsReq(
 		}
 		else if (mode == ModeDown) {
 			//For Down mode, reset this value to trigger the sending packets as download response.
-			g_downSentCount = 0;
+			if (startRsp) {
+				g_downSentCount = 0;
+			}
 		}
 	}
 
