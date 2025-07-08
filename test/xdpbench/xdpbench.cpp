@@ -244,7 +244,7 @@ LONGLONG g_reqTimeStamp = 0;
 INT64 g_downReqOrder = 0;
 //-huajianwang:eelat
 
-	UINT32
+UINT32
 RingPairReserve(
 		_In_ XSK_RING* ConsumerRing,
 		_Out_ UINT32* ConsumerIndex,
@@ -258,32 +258,32 @@ RingPairReserve(
 	return MaxCount;
 }
 
-	VOID
+VOID
 PrintRing(
-		CHAR* Name,
-		XSK_RING_INFO RingInfo
-	 )
+	CHAR* Name,
+	XSK_RING_INFO RingInfo
+)
 {
 	if (RingInfo.Size != 0) {
 		printf_verbose(
-				"%s\tring:\n\tva=0x%p\n\tsize=%d\n\tdescriptorsOff=%d\n\t"
-				"producerIndexOff=%d(%lu)\n\tconsumerIndexOff=%d(%lu)\n\t"
-				"flagsOff=%d(%lu)\n\telementStride=%d\n",
-				Name, RingInfo.Ring, RingInfo.Size, RingInfo.DescriptorsOffset,
-				RingInfo.ProducerIndexOffset,
-				*(UINT32*)(RingInfo.Ring + RingInfo.ProducerIndexOffset),
-				RingInfo.ConsumerIndexOffset,
-				*(UINT32*)(RingInfo.Ring + RingInfo.ConsumerIndexOffset),
-				RingInfo.FlagsOffset,
-				*(UINT32*)(RingInfo.Ring + RingInfo.FlagsOffset),
-				RingInfo.ElementStride);
+			"%s\tring:\n\tva=0x%p\n\tsize=%d\n\tdescriptorsOff=%d\n\t"
+			"producerIndexOff=%d(%lu)\n\tconsumerIndexOff=%d(%lu)\n\t"
+			"flagsOff=%d(%lu)\n\telementStride=%d\n",
+			Name, RingInfo.Ring, RingInfo.Size, RingInfo.DescriptorsOffset,
+			RingInfo.ProducerIndexOffset,
+			*(UINT32*)(RingInfo.Ring + RingInfo.ProducerIndexOffset),
+			RingInfo.ConsumerIndexOffset,
+			*(UINT32*)(RingInfo.Ring + RingInfo.ConsumerIndexOffset),
+			RingInfo.FlagsOffset,
+			*(UINT32*)(RingInfo.Ring + RingInfo.FlagsOffset),
+			RingInfo.ElementStride);
 	}
 }
 
-	VOID
+VOID
 PrintRingInfo(
-		XSK_RING_INFO_SET InfoSet
-	     )
+	XSK_RING_INFO_SET InfoSet
+)
 {
 	PrintRing("rx", InfoSet.Rx);
 	PrintRing("tx", InfoSet.Tx);
@@ -291,10 +291,10 @@ PrintRingInfo(
 	PrintRing("comp", InfoSet.Completion);
 }
 
-	VOID
+VOID
 AttachXdpProgram(
-		MY_QUEUE* Queue
-		)
+	MY_QUEUE* Queue
+)
 {
 	//jXDP_RULE rule = { 0 };
 	XDP_RULE rule;
@@ -326,16 +326,16 @@ AttachXdpProgram(
 
 	res =
 		XdpCreateProgram(
-				ifindex, &hookId, Queue->queueId, (XDP_CREATE_PROGRAM_FLAGS)flags, &rule, 1, &Queue->rxProgram);
+			ifindex, &hookId, Queue->queueId, (XDP_CREATE_PROGRAM_FLAGS)flags, &rule, 1, &Queue->rxProgram);
 	if (FAILED(res)) {
 		ABORT("XdpCreateProgram failed: %d\n", res);
 	}
 }
 
-	VOID
+VOID
 EnableLargePages(
-		VOID
-		)
+	VOID
+)
 {
 	HANDLE Token = NULL;
 	TOKEN_PRIVILEGES TokenPrivileges;
@@ -365,10 +365,10 @@ Failure:
 	ABORT("Failed to acquire large page privileges. See \"Assigning Privileges to an Account\"\n");
 }
 
-	UCHAR
+UCHAR
 HexToBin(
-		_In_ CHAR Char
-	)
+	_In_ CHAR Char
+)
 {
 	Char = (CHAR)tolower(Char);
 
@@ -384,12 +384,12 @@ HexToBin(
 	return 0;
 }
 
-	VOID
+VOID
 GetDescriptorPattern(
-		_Inout_ UCHAR* Buffer,
-		_In_ UINT32 BufferSize,
-		_In_opt_z_ const CHAR* Hex
-		)
+	_Inout_ UCHAR* Buffer,
+	_In_ UINT32 BufferSize,
+	_In_opt_z_ const CHAR* Hex
+)
 {
 	while (Hex != NULL && *Hex != '\0') {
 		ASSERT_FRE(BufferSize > 0);
@@ -406,11 +406,11 @@ GetDescriptorPattern(
 }
 
 _Success_(return)
-	BOOLEAN
+BOOLEAN
 ParseUInt64A(
-		_In_z_ const CHAR * Arg,
-		_Out_ UINT64 * Result
-	    )
+	_In_z_ const CHAR * Arg,
+	_Out_ UINT64 * Result
+)
 {
 	// detect hex
 	const CHAR* Fmt = (Arg[0] == '0' && Arg[1] == 'x') ? "%llx%n" : "%llu%n";
@@ -425,11 +425,11 @@ ParseUInt64A(
 }
 
 _Success_(return)
-	BOOLEAN
+BOOLEAN
 ParseUInt32A(
-		_In_z_ const CHAR * Arg,
-		_Out_ UINT32 * Result
-	    )
+	_In_z_ const CHAR * Arg,
+	_Out_ UINT32 * Result
+)
 {
 	UINT64 Tmp;
 
@@ -446,11 +446,11 @@ ParseUInt32A(
 	return TRUE;
 }
 
-	VOID
+VOID
 SetupSock(
-		INT IfIndex,
-		MY_QUEUE * Queue
-	 )
+	INT IfIndex,
+	MY_QUEUE * Queue
+)
 {
 	HRESULT res;
 	UINT32 bindFlags = 0;
@@ -477,36 +477,36 @@ SetupSock(
 
 	Queue->umemReg.Address =
 		VirtualAlloc(
-				NULL, Queue->umemReg.TotalSize,
-				(largePages ? MEM_LARGE_PAGES : 0) | MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+			NULL, Queue->umemReg.TotalSize,
+			(largePages ? MEM_LARGE_PAGES : 0) | MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	ASSERT_FRE(Queue->umemReg.Address != NULL);
 
 	res =
 		XskSetSockopt(
-				Queue->sock, XSK_SOCKOPT_UMEM_REG, &Queue->umemReg,
-				sizeof(Queue->umemReg));
+			Queue->sock, XSK_SOCKOPT_UMEM_REG, &Queue->umemReg,
+			sizeof(Queue->umemReg));
 	ASSERT_FRE(res == S_OK);
 
 	printf_verbose("configuring fill ring with size %d\n", Queue->ringsize);
 	res =
 		XskSetSockopt(
-				Queue->sock, XSK_SOCKOPT_RX_FILL_RING_SIZE, &Queue->ringsize,
-				sizeof(Queue->ringsize));
+			Queue->sock, XSK_SOCKOPT_RX_FILL_RING_SIZE, &Queue->ringsize,
+			sizeof(Queue->ringsize));
 	ASSERT_FRE(res == S_OK);
 
 	printf_verbose("configuring completion ring with size %d\n", Queue->ringsize);
 	res =
 		XskSetSockopt(
-				Queue->sock, XSK_SOCKOPT_TX_COMPLETION_RING_SIZE, &Queue->ringsize,
-				sizeof(Queue->ringsize));
+			Queue->sock, XSK_SOCKOPT_TX_COMPLETION_RING_SIZE, &Queue->ringsize,
+			sizeof(Queue->ringsize));
 	ASSERT_FRE(res == S_OK);
 
 	if (Queue->flags.rx) {
 		printf_verbose("configuring rx ring with size %d\n", Queue->ringsize);
 		res =
 			XskSetSockopt(
-					Queue->sock, XSK_SOCKOPT_RX_RING_SIZE, &Queue->ringsize,
-					sizeof(Queue->ringsize));
+				Queue->sock, XSK_SOCKOPT_RX_RING_SIZE, &Queue->ringsize,
+				sizeof(Queue->ringsize));
 		ASSERT_FRE(res == S_OK);
 		bindFlags |= XSK_BIND_FLAG_RX;
 	}
@@ -514,8 +514,8 @@ SetupSock(
 		printf_verbose("configuring tx ring with size %d\n", Queue->ringsize);
 		res =
 			XskSetSockopt(
-					Queue->sock, XSK_SOCKOPT_TX_RING_SIZE, &Queue->ringsize,
-					sizeof(Queue->ringsize));
+				Queue->sock, XSK_SOCKOPT_TX_RING_SIZE, &Queue->ringsize,
+				sizeof(Queue->ringsize));
 		ASSERT_FRE(res == S_OK);
 		bindFlags |= XSK_BIND_FLAG_TX;
 	}
@@ -552,7 +552,7 @@ SetupSock(
 	}
 
 	printf_verbose(
-			"binding sock to ifindex %d queueId %d flags 0x%x\n", IfIndex, Queue->queueId, bindFlags);
+		"binding sock to ifindex %d queueId %d flags 0x%x\n", IfIndex, Queue->queueId, bindFlags);
 	res = XskBind(Queue->sock, IfIndex, Queue->queueId, (XSK_BIND_FLAGS)bindFlags);
 	ASSERT_FRE(res == S_OK);
 
@@ -580,7 +580,7 @@ SetupSock(
 
 	res =
 		XskSetSockopt(
-				Queue->sock, XSK_SOCKOPT_POLL_MODE, &Queue->pollMode, sizeof(Queue->pollMode));
+			Queue->sock, XSK_SOCKOPT_POLL_MODE, &Queue->pollMode, sizeof(Queue->pollMode));
 	ASSERT_FRE(res == S_OK);
 
 	//
@@ -589,7 +589,7 @@ SetupSock(
 	UINT64 numDescriptors64 = Queue->umemsize / Queue->umemchunksize;
 	ASSERT_FRE(numDescriptors64 <= MAXUINT32);
 	UINT32 numDescriptors = (UINT32)numDescriptors64;
-	struct sFreeRingLayout{
+	struct sFreeRingLayout {
 		UINT32 Producer;
 		UINT32 Consumer;
 		UINT32 Flags;
@@ -612,7 +612,7 @@ SetupSock(
 	PrintRing("free", freeRingInfo);
 
 	// Disable the checksum when sending udp traffic.
-	if(Queue->txPattern){
+	if (Queue->txPattern) {
 		IPV4_HEADER* IpHeader = (IPV4_HEADER*)((UINT8*)Queue->txPattern + sizeof(ETHERNET_HEADER));
 		if (IpHeader->Protocol == IPPROTO_UDP) {
 			printf("The workload is UDP buffer. Disable the checksum on the udp header\n");
@@ -629,8 +629,8 @@ SetupSock(
 		if (mode == ModeTx || mode == ModeLat || mode == ModeDown || mode == ModeUp) {
 			if (Queue->txPattern) {
 				memcpy(
-						(UCHAR*)Queue->umemReg.Address + desc + Queue->umemheadroom, Queue->txPattern,
-						Queue->txPatternLength);
+					(UCHAR*)Queue->umemReg.Address + desc + Queue->umemheadroom, Queue->txPattern,
+					Queue->txPatternLength);
 			}
 		}
 
@@ -641,10 +641,10 @@ SetupSock(
 	AttachXdpProgram(Queue);
 }
 
-	VOID
+VOID
 ProcessPeriodicStats(
-		MY_QUEUE * Queue
-		)
+	MY_QUEUE * Queue
+)
 {
 	UINT64 currentTick = GetTickCount64();
 	UINT64 tickDiff = currentTick - Queue->lastTick;
@@ -704,10 +704,10 @@ ProcessPeriodicStats(
 		Queue->lastRxDropCount = stats.RxDropped;
 
 		printf("%s[%d]: %9.3f kpps %9.3f rxDropKpps rxDrop:%llu rxTrunc:%llu "
-				"rxBadDesc:%llu txBadDesc:%llu pokesAvoided:%llu%%\n",
-				modestr, Queue->queueId, kpps, rxDropKpps, stats.RxDropped, stats.RxTruncated,
-				stats.RxInvalidDescriptors, stats.TxInvalidDescriptors,
-				pokesAvoidedPercentage);
+			"rxBadDesc:%llu txBadDesc:%llu pokesAvoided:%llu%%\n",
+			modestr, Queue->queueId, kpps, rxDropKpps, stats.RxDropped, stats.RxTruncated,
+			stats.RxInvalidDescriptors, stats.TxInvalidDescriptors,
+			pokesAvoidedPercentage);
 
 		Queue->lastPokesRequestedCount = pokesRequested;
 		Queue->lastPokesPerformedCount = pokesPerformed;
@@ -718,32 +718,32 @@ ProcessPeriodicStats(
 	Queue->lastTick = currentTick;
 }
 
-	INT
+INT
 LatCmp(
-		const VOID * A,
-		const VOID * B
-      )
+	const VOID * A,
+	const VOID * B
+)
 {
 	const UINT64* a = (const UINT64*)A;
 	const UINT64* b = (const UINT64*)B;
 	return (*a > *b) - (*a < *b);
 }
 
-	INT
+INT
 batchCmp(
-		const VOID * A,
-		const VOID * B
-	)
+	const VOID * A,
+	const VOID * B
+)
 {
 	const UINT32* a = (const UINT32*)A;
 	const UINT32* b = (const UINT32*)B;
 	return *b - *a;
 }
 
-	VOID
+VOID
 PrintFinalLatStats(
-		MY_QUEUE * Queue
-		)
+	MY_QUEUE * Queue
+)
 {
 	LARGE_INTEGER FreqQpc;
 	VERIFY(QueryPerformanceFrequency(&FreqQpc));
@@ -796,19 +796,19 @@ PrintFinalLatStats(
 		}
 	}
 	printf(
-			"%-3s[%d]: min=%llu at %u P50=%llu P90=%llu P99=%llu P99.9=%llu P99.99=%llu P99.999=%llu P99.9999=%llu us rtt collecting latecies on %d th frame, packetSize %u \n",
-			modestr, Queue->queueId,
-			//Queue->latSamples[0],
-			Queue->latSamples[recvStart],recvStart,
-			Queue->latSamples[(UINT32)(Queue->latIndex * 0.5)],
-			Queue->latSamples[(UINT32)(Queue->latIndex * 0.9)],
-			Queue->latSamples[(UINT32)(Queue->latIndex * 0.99)],
-			Queue->latSamples[(UINT32)(Queue->latIndex * 0.999)],
-			Queue->latSamples[(UINT32)(Queue->latIndex * 0.9999)],
-			Queue->latSamples[(UINT32)(Queue->latIndex * 0.99999)],
-			Queue->latSamples[(UINT32)(Queue->latIndex * 0.999999)],
-			Queue->ackBatch,
-			maxRecvOrder);
+		"%-3s[%d]: min=%llu at %u P50=%llu P90=%llu P99=%llu P99.9=%llu P99.99=%llu P99.999=%llu P99.9999=%llu us rtt collecting latecies on %d th frame, packetSize %u \n",
+		modestr, Queue->queueId,
+		//Queue->latSamples[0],
+		Queue->latSamples[recvStart], recvStart,
+		Queue->latSamples[(UINT32)(Queue->latIndex * 0.5)],
+		Queue->latSamples[(UINT32)(Queue->latIndex * 0.9)],
+		Queue->latSamples[(UINT32)(Queue->latIndex * 0.99)],
+		Queue->latSamples[(UINT32)(Queue->latIndex * 0.999)],
+		Queue->latSamples[(UINT32)(Queue->latIndex * 0.9999)],
+		Queue->latSamples[(UINT32)(Queue->latIndex * 0.99999)],
+		Queue->latSamples[(UINT32)(Queue->latIndex * 0.999999)],
+		Queue->ackBatch,
+		maxRecvOrder);
 
 	printf("9999 @ %u\n", (UINT32)(Queue->latIndex * 0.9999));
 
@@ -818,7 +818,7 @@ PrintFinalLatStats(
 	//
 	char runname[100];
 	int ret = sprintf_s(runname, sizeof(runname), "%04d%02d%02d%02d%02d%02d",
-			st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+		st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
 
 	if (ret > 0) {
 
@@ -842,16 +842,16 @@ PrintFinalLatStats(
 
 		if (fp) {
 			fprintf(fp, "%s,%u,%llu,%llu,%llu,%llu,%llu,%llu,%llu\n",
-					runname,
-					(uint32_t)(Queue->recvKpps*1000),
-					Queue->latSamples[(UINT32)(Queue->latIndex * 0.5)],
-					Queue->latSamples[(UINT32)(Queue->latIndex * 0.9)],
-					Queue->latSamples[(UINT32)(Queue->latIndex * 0.99)],
-					Queue->latSamples[(UINT32)(Queue->latIndex * 0.999)],
-					Queue->latSamples[(UINT32)(Queue->latIndex * 0.9999)],
-					Queue->latSamples[(UINT32)(Queue->latIndex * 0.99999)],
-					Queue->latSamples[(UINT32)(Queue->latIndex * 0.999999)]
-			       );
+				runname,
+				(uint32_t)(Queue->recvKpps * 1000),
+				Queue->latSamples[(UINT32)(Queue->latIndex * 0.5)],
+				Queue->latSamples[(UINT32)(Queue->latIndex * 0.9)],
+				Queue->latSamples[(UINT32)(Queue->latIndex * 0.99)],
+				Queue->latSamples[(UINT32)(Queue->latIndex * 0.999)],
+				Queue->latSamples[(UINT32)(Queue->latIndex * 0.9999)],
+				Queue->latSamples[(UINT32)(Queue->latIndex * 0.99999)],
+				Queue->latSamples[(UINT32)(Queue->latIndex * 0.999999)]
+			);
 
 			fclose(fp);
 		}
@@ -902,39 +902,39 @@ PrintFinalLatStats(
 	qsort(Queue->orderSamples, Queue->latIndex, sizeof(*Queue->orderSamples), batchCmp);
 
 	printf(
-			"%-3s[%d]: min=%d P50=%d P90=%d P99=%d P99.9=%d P99.99=%d P99.999=%d P99.9999=%d /%d packets lost\n",
-			modestr, Queue->queueId,
-			Queue->orderSamples[0],
-			Queue->orderSamples[(UINT32)(Queue->latIndex * 0.5)],
-			Queue->orderSamples[(UINT32)(Queue->latIndex * 0.9)],
-			Queue->orderSamples[(UINT32)(Queue->latIndex * 0.99)],
-			Queue->orderSamples[(UINT32)(Queue->latIndex * 0.999)],
-			Queue->orderSamples[(UINT32)(Queue->latIndex * 0.9999)],
-			Queue->orderSamples[(UINT32)(Queue->latIndex * 0.99999)],
-			Queue->orderSamples[(UINT32)(Queue->latIndex * 0.999999)],
-			Queue->reqBatch
-	      );
+		"%-3s[%d]: min=%d P50=%d P90=%d P99=%d P99.9=%d P99.99=%d P99.999=%d P99.9999=%d /%d packets lost\n",
+		modestr, Queue->queueId,
+		Queue->orderSamples[0],
+		Queue->orderSamples[(UINT32)(Queue->latIndex * 0.5)],
+		Queue->orderSamples[(UINT32)(Queue->latIndex * 0.9)],
+		Queue->orderSamples[(UINT32)(Queue->latIndex * 0.99)],
+		Queue->orderSamples[(UINT32)(Queue->latIndex * 0.999)],
+		Queue->orderSamples[(UINT32)(Queue->latIndex * 0.9999)],
+		Queue->orderSamples[(UINT32)(Queue->latIndex * 0.99999)],
+		Queue->orderSamples[(UINT32)(Queue->latIndex * 0.999999)],
+		Queue->reqBatch
+	);
 	printf(
-			"position at: %-3s[%d]: min=%d P50=%d P90=%d P99=%d P99.9=%d P99.99=%d P99.999=%d P99.9999=%d packets lost\n",
-			modestr, Queue->queueId,
-			0,
-			(UINT32)(Queue->latIndex * 0.5),
-			(UINT32)(Queue->latIndex * 0.9),
-			(UINT32)(Queue->latIndex * 0.99),
-			(UINT32)(Queue->latIndex * 0.999),
-			(UINT32)(Queue->latIndex * 0.9999),
-			(UINT32)(Queue->latIndex * 0.99999),
-			(UINT32)(Queue->latIndex * 0.999999)
-	      );
+		"position at: %-3s[%d]: min=%d P50=%d P90=%d P99=%d P99.9=%d P99.99=%d P99.999=%d P99.9999=%d packets lost\n",
+		modestr, Queue->queueId,
+		0,
+		(UINT32)(Queue->latIndex * 0.5),
+		(UINT32)(Queue->latIndex * 0.9),
+		(UINT32)(Queue->latIndex * 0.99),
+		(UINT32)(Queue->latIndex * 0.999),
+		(UINT32)(Queue->latIndex * 0.9999),
+		(UINT32)(Queue->latIndex * 0.99999),
+		(UINT32)(Queue->latIndex * 0.999999)
+	);
 
 	printf("Collected %d samples\n", Queue->latIndex);
 	//-huajianwang:eelat
 }
 
-	VOID
+VOID
 PrintFinalStats(
-		MY_QUEUE * Queue
-	       )
+	MY_QUEUE * Queue
+)
 {
 	ULONG numEntries = min(Queue->currStatsArrayIdx, STATS_ARRAY_SIZE);
 	ULONG numEntriesIgnored = 0;
@@ -950,8 +950,8 @@ PrintFinalStats(
 		// calculation needs at least 2 data points.
 		//
 		printf_error(
-				"%-3s[%d] Not enough data points collected for a statistical analysis\n",
-				modestr, Queue->queueId);
+			"%-3s[%d] Not enough data points collected for a statistical analysis\n",
+			modestr, Queue->queueId);
 		return;
 	}
 
@@ -995,7 +995,7 @@ PrintFinalStats(
 	stdDev = sqrt(stdDev / (numEntries - 1));
 
 	printf("%-3s[%d]: avg=%08.3f stddev=%08.3f min=%08.3f max=%08.3f Kpps\n",
-			modestr, Queue->queueId, avg, stdDev, min, max);
+		modestr, Queue->queueId, avg, stdDev, min, max);
 
 	//huajianwang:eelat
 	if (mode == ModeLat || mode == ModeRx || mode == ModeDown || mode == ModeUp) {
@@ -1007,11 +1007,11 @@ PrintFinalStats(
 	//-huajianwang:eelat
 }
 
-	VOID
+VOID
 NotifyDriver(
-		MY_QUEUE * Queue,
-		XSK_NOTIFY_FLAGS DirectionFlags
-	    )
+	MY_QUEUE * Queue,
+	XSK_NOTIFY_FLAGS DirectionFlags
+)
 {
 	HRESULT res;
 	XSK_NOTIFY_RESULT_FLAGS notifyResult;
@@ -1036,7 +1036,7 @@ NotifyDriver(
 		Queue->pokesPerformedCount++;
 		res =
 			XskNotifySocket(
-					Queue->sock, DirectionFlags, WAIT_DRIVER_TIMEOUT_MS, &notifyResult);
+				Queue->sock, DirectionFlags, WAIT_DRIVER_TIMEOUT_MS, &notifyResult);
 
 		if (DirectionFlags & (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX)) {
 			ASSERT_FRE(res == S_OK || res == HRESULT_FROM_WIN32(ERROR_TIMEOUT));
@@ -1049,13 +1049,13 @@ NotifyDriver(
 }
 
 //Utils: Move the packet buffer from free ring to fill ring for RX
-	VOID
+VOID
 WriteFillPackets(
-		MY_QUEUE * Queue,
-		UINT32 FreeConsumerIndex,
-		UINT32 FillProducerIndex,
-		UINT32 Count
-		)
+	MY_QUEUE * Queue,
+	UINT32 FreeConsumerIndex,
+	UINT32 FillProducerIndex,
+	UINT32 Count
+)
 {
 	for (UINT32 i = 0; i < Count; i++) {
 		UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, FreeConsumerIndex++);
@@ -1067,13 +1067,13 @@ WriteFillPackets(
 }
 
 //Utils: Read the packet buffer from RX ring to cache the timestamp and request order for other forward actions.
-	VOID 
+VOID
 ReadRxPacketsTimeStamp(
-		MY_QUEUE * Queue,
-		UINT32 RxConsumerIndex,
-		UINT32 FreeProducerIndex,
-		UINT32 Count
-		)
+	MY_QUEUE * Queue,
+	UINT32 RxConsumerIndex,
+	UINT32 FreeProducerIndex,
+	UINT32 Count
+)
 {
 	for (UINT32 i = 0; i < Count; i++) {
 		XSK_BUFFER_DESCRIPTOR* rxDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&Queue->rxRing, RxConsumerIndex++);
@@ -1097,17 +1097,17 @@ ReadRxPacketsTimeStamp(
 
 		*freeDesc = rxDesc->Address.BaseAddress;
 		printf_verbose("Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
-				rxDesc->Address.BaseAddress, rxDesc->Address.Offset, rxDesc->Length);
+			rxDesc->Address.BaseAddress, rxDesc->Address.Offset, rxDesc->Length);
 	}
 }
 
-	VOID
+VOID
 ReadRxPacketsLight(
-		MY_QUEUE * Queue,
-		UINT32 RxConsumerIndex,
-		UINT32 FreeProducerIndex,
-		UINT32 Count
-		)
+	MY_QUEUE * Queue,
+	UINT32 RxConsumerIndex,
+	UINT32 FreeProducerIndex,
+	UINT32 Count
+)
 {
 	for (UINT32 i = 0; i < Count; i++) {
 		XSK_BUFFER_DESCRIPTOR* rxDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&Queue->rxRing, RxConsumerIndex++);
@@ -1116,18 +1116,18 @@ ReadRxPacketsLight(
 
 		*freeDesc = rxDesc->Address.BaseAddress;
 		printf_verbose("Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
-				rxDesc->Address.BaseAddress, rxDesc->Address.Offset, rxDesc->Length);
+			rxDesc->Address.BaseAddress, rxDesc->Address.Offset, rxDesc->Length);
 	}
 }
 
 
-	VOID
+VOID
 ReadRxPacketsForLatency(
-		MY_QUEUE * Queue,
-		UINT32 RxConsumerIndex,
-		UINT32 FreeProducerIndex,
-		UINT32 Count
-		)
+	MY_QUEUE * Queue,
+	UINT32 RxConsumerIndex,
+	UINT32 FreeProducerIndex,
+	UINT32 Count
+)
 {
 	//huajianwang:eelat
 	LONGLONG end = 0;
@@ -1169,16 +1169,16 @@ ReadRxPacketsForLatency(
 
 		*freeDesc = rxDesc->Address.BaseAddress;
 		printf_verbose("Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
-				rxDesc->Address.BaseAddress, rxDesc->Address.Offset, rxDesc->Length);
+			rxDesc->Address.BaseAddress, rxDesc->Address.Offset, rxDesc->Length);
 	}
 }
 
 // Function to check whether there is any packet in the RX ring as the downloading request.
-	UINT32
+UINT32
 ProcessRxAsReq(
-		MY_QUEUE * Queue,
-		BOOLEAN Wait
-	      )
+	MY_QUEUE * Queue,
+	BOOLEAN Wait
+)
 {
 	XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
 	UINT32 available;
@@ -1189,7 +1189,7 @@ ProcessRxAsReq(
 	// 1: Try to read packets from RX ring as the request
 	available =
 		RingPairReserve(
-				&Queue->rxRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
+			&Queue->rxRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
 	if (available > 0) {
 		ReadRxPacketsTimeStamp(Queue, consumerIndex, producerIndex, available);
 		XskRingConsumerRelease(&Queue->rxRing, available);
@@ -1211,7 +1211,7 @@ ProcessRxAsReq(
 
 	available =
 		RingPairReserve(
-				&Queue->freeRing, &consumerIndex, &Queue->fillRing, &producerIndex, Queue->iobatchsize);
+			&Queue->freeRing, &consumerIndex, &Queue->fillRing, &producerIndex, Queue->iobatchsize);
 	if (available > 0) {
 		WriteFillPackets(Queue, consumerIndex, producerIndex, available);
 		XskRingConsumerRelease(&Queue->freeRing, available);
@@ -1222,8 +1222,8 @@ ProcessRxAsReq(
 	}
 
 	if (Wait &&
-			XskRingConsumerReserve(&Queue->rxRing, 1, &consumerIndex) == 0 &&
-			XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
+		XskRingConsumerReserve(&Queue->rxRing, 1, &consumerIndex) == 0 &&
+		XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
 		notifyFlags |= XSK_NOTIFY_FLAG_WAIT_RX;
 	}
 
@@ -1241,11 +1241,11 @@ ProcessRxAsReq(
 	return processed;
 }
 
-	UINT32
+UINT32
 ProcessRx(
-		MY_QUEUE * Queue,
-		BOOLEAN Wait
-	 )
+	MY_QUEUE * Queue,
+	BOOLEAN Wait
+)
 {
 	XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
 	UINT32 available;
@@ -1255,7 +1255,7 @@ ProcessRx(
 
 	available =
 		RingPairReserve(
-				&Queue->rxRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
+			&Queue->rxRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
 	if (available > 0) {
 		ReadRxPacketsForLatency(Queue, consumerIndex, producerIndex, available);
 		XskRingConsumerRelease(&Queue->rxRing, available);
@@ -1268,7 +1268,7 @@ ProcessRx(
 
 	available =
 		RingPairReserve(
-				&Queue->freeRing, &consumerIndex, &Queue->fillRing, &producerIndex, Queue->iobatchsize);
+			&Queue->freeRing, &consumerIndex, &Queue->fillRing, &producerIndex, Queue->iobatchsize);
 	if (available > 0) {
 		WriteFillPackets(Queue, consumerIndex, producerIndex, available);
 		XskRingConsumerRelease(&Queue->freeRing, available);
@@ -1279,8 +1279,8 @@ ProcessRx(
 	}
 
 	if (Wait &&
-			XskRingConsumerReserve(&Queue->rxRing, 1, &consumerIndex) == 0 &&
-			XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
+		XskRingConsumerReserve(&Queue->rxRing, 1, &consumerIndex) == 0 &&
+		XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
 		notifyFlags |= XSK_NOTIFY_FLAG_WAIT_RX;
 	}
 
@@ -1298,10 +1298,10 @@ ProcessRx(
 	return processed;
 }
 
-	VOID
+VOID
 DoRxMode(
-		MY_THREAD * Thread
-	)
+	MY_THREAD * Thread
+)
 {
 	for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
 		MY_QUEUE* queue = &Thread->queues[qIndex];
@@ -1335,13 +1335,13 @@ DoRxMode(
 // * Write the timestamp into the TX packet.
 // * Write the id(order) of the file into the packet.
 // * The above two values are both from the local machine.
-	VOID
+VOID
 WriteTxPackets(
-		MY_QUEUE * Queue,
-		UINT32 FreeConsumerIndex,
-		UINT32 TxProducerIndex,
-		UINT32 Count
-	      )
+	MY_QUEUE * Queue,
+	UINT32 FreeConsumerIndex,
+	UINT32 TxProducerIndex,
+	UINT32 Count
+)
 {
 	if (Queue->sentInBatch == 0) {
 		// LONGLONG prev = Thread->queues[qIndex].sendStartMark.QuadPart;
@@ -1379,7 +1379,7 @@ WriteTxPackets(
 		//-huajianwang:eelat
 
 		printf_verbose("Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
-				txDesc->Address.BaseAddress, txDesc->Address.Offset, txDesc->Length);
+			txDesc->Address.BaseAddress, txDesc->Address.Offset, txDesc->Length);
 	}
 }
 
@@ -1387,13 +1387,13 @@ WriteTxPackets(
 // * Write the timestamp into the TX packet.
 // * Write the id(order) of the file into the packet.
 // * The above two values are both from the request for downloading. 
-	VOID
+VOID
 WriteTxDownPackets(
-		MY_QUEUE * Queue,
-		UINT32 FreeConsumerIndex,
-		UINT32 TxProducerIndex,
-		UINT32 Count
-		)
+	MY_QUEUE * Queue,
+	UINT32 FreeConsumerIndex,
+	UINT32 TxProducerIndex,
+	UINT32 Count
+)
 {
 	for (UINT32 i = 0; i < Count; i++) {
 		UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, FreeConsumerIndex++);
@@ -1416,18 +1416,18 @@ WriteTxDownPackets(
 		Queue->sentInBatch++;
 
 		printf_verbose("Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
-				txDesc->Address.BaseAddress, txDesc->Address.Offset, txDesc->Length);
+			txDesc->Address.BaseAddress, txDesc->Address.Offset, txDesc->Length);
 	}
 }
 
 
-	VOID
+VOID
 ReadCompletionPackets(
-		MY_QUEUE * Queue,
-		UINT32 CompConsumerIndex,
-		UINT32 FreeProducerIndex,
-		UINT32 Count
-		)
+	MY_QUEUE * Queue,
+	UINT32 CompConsumerIndex,
+	UINT32 FreeProducerIndex,
+	UINT32 Count
+)
 {
 	for (UINT32 i = 0; i < Count; i++) {
 		UINT64* compDesc = (UINT64*)XskRingGetElement(&Queue->compRing, CompConsumerIndex++);
@@ -1438,11 +1438,11 @@ ReadCompletionPackets(
 	}
 }
 
-	UINT32
+UINT32
 ProcessTx(
-		MY_QUEUE * Queue,
-		BOOLEAN Wait
-	 )
+	MY_QUEUE * Queue,
+	BOOLEAN Wait
+)
 {
 	XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
 	UINT32 available;
@@ -1452,7 +1452,7 @@ ProcessTx(
 
 	available =
 		RingPairReserve(
-				&Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
+			&Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
 	//&Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
 	if (available > 0) {
 		ReadCompletionPackets(Queue, consumerIndex, producerIndex, available);
@@ -1463,7 +1463,7 @@ ProcessTx(
 		Queue->packetCount += available;
 
 		if (XskRingProducerReserve(&Queue->txRing, MAXUINT32, &producerIndex) !=
-				Queue->txRing.Size) {
+			Queue->txRing.Size) {
 			notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
 		}
 	}
@@ -1475,12 +1475,12 @@ ProcessTx(
 	   nextsent = min(Queue->iobatchsize, Queue->frameperfile - Queue->sent);
 	   }
 	   */
-	//available =
-	//    RingPairReserve(
-	//        &Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, Queue->iobatchsize);
+	   //available =
+	   //    RingPairReserve(
+	   //        &Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, Queue->iobatchsize);
 	available =
 		RingPairReserve(
-				&Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, nextsent);
+			&Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, nextsent);
 	//-huajianwang:eelat
 
 	if (available > 0) {
@@ -1493,8 +1493,8 @@ ProcessTx(
 	}
 
 	if (Wait &&
-			XskRingConsumerReserve(&Queue->compRing, 1, &consumerIndex) == 0 &&
-			XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
+		XskRingConsumerReserve(&Queue->compRing, 1, &consumerIndex) == 0 &&
+		XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
 		notifyFlags |= XSK_NOTIFY_FLAG_WAIT_TX;
 	}
 
@@ -1513,10 +1513,10 @@ ProcessTx(
 }
 
 // TxMode is used to generate requests as controlled RPS on tokenbucket.
-	VOID
+VOID
 DoTxModeTokenBucket(
-		MY_THREAD * Thread
-		)
+	MY_THREAD * Thread
+)
 {
 	for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
 		MY_QUEUE* queue = &Thread->queues[qIndex];
@@ -1545,7 +1545,7 @@ DoTxModeTokenBucket(
 			else {
 				//huajianwang:eelat
 				if (Thread->queues[qIndex].sentInBatch == 0) {
-					if (Thread->queues[qIndex].filebucket.consume_tokens( 1) != 0) {
+					if (Thread->queues[qIndex].filebucket.consume_tokens(1) != 0) {
 						Thread->queues[qIndex].queueIsSending = true;
 					}
 				}
@@ -1589,1076 +1589,1076 @@ DoTxModeTokenBucket(
 				}
 				}
 				*/
-				}
-				//-huajianwang:eelat
 			}
+			//-huajianwang:eelat
+		}
 
-			if (!Processed) {
-				for (UINT32 i = 0; i < Thread->yieldCount; i++) {
-					YieldProcessor();
-				}
+		if (!Processed) {
+			for (UINT32 i = 0; i < Thread->yieldCount; i++) {
+				YieldProcessor();
 			}
+		}
 
+	}
+}
+
+// TxMode: Sending fpg frames to repsonse the download request.
+UINT32
+GenerateTxAsRsp(
+	MY_QUEUE * Queue,
+	BOOLEAN Wait
+) {
+	XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
+	UINT32 available;
+	UINT32 consumerIndex;
+	UINT32 producerIndex;
+	UINT32 processed = 0;
+
+	available =
+		RingPairReserve(
+			&Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
+	if (available > 0) {
+		ReadCompletionPackets(Queue, consumerIndex, producerIndex, available);
+		XskRingConsumerRelease(&Queue->compRing, available);
+		XskRingProducerSubmit(&Queue->freeRing, available);
+
+		processed += available;
+		Queue->packetCount += available;
+
+		if (XskRingProducerReserve(&Queue->txRing, MAXUINT32, &producerIndex) !=
+			Queue->txRing.Size) {
+			notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
 		}
 	}
 
-	// TxMode: Sending fpg frames to repsonse the download request.
-	UINT32
-		GenerateTxAsRsp(
-				MY_QUEUE * Queue,
-				BOOLEAN Wait
-			       ) {
-			XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
-			UINT32 available;
-			UINT32 consumerIndex;
-			UINT32 producerIndex;
-			UINT32 processed = 0;
-
+	//huajianwang:eelat
+	if (mode == ModeDown) {
+		if (g_downSentCount < Queue->ackBatch) {
+			UINT32 nextsent = min(Queue->iobatchsize, Queue->ackBatch - g_downSentCount);
 			available =
 				RingPairReserve(
-						&Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
+					&Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, nextsent);
+			//-huajianwang:eelat
+
 			if (available > 0) {
-				ReadCompletionPackets(Queue, consumerIndex, producerIndex, available);
-				XskRingConsumerRelease(&Queue->compRing, available);
-				XskRingProducerSubmit(&Queue->freeRing, available);
+				WriteTxDownPackets(Queue, consumerIndex, producerIndex, available);
+				XskRingConsumerRelease(&Queue->freeRing, available);
+				XskRingProducerSubmit(&Queue->txRing, available);
 
 				processed += available;
-				Queue->packetCount += available;
-
-				if (XskRingProducerReserve(&Queue->txRing, MAXUINT32, &producerIndex) !=
-						Queue->txRing.Size) {
-					notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
-				}
-			}
-
-			//huajianwang:eelat
-			if (mode == ModeDown) {
-				if (g_downSentCount < Queue->ackBatch) {
-					UINT32 nextsent = min(Queue->iobatchsize, Queue->ackBatch - g_downSentCount);
-					available =
-						RingPairReserve(
-								&Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, nextsent);
-					//-huajianwang:eelat
-
-					if (available > 0) {
-						WriteTxDownPackets(Queue, consumerIndex, producerIndex, available);
-						XskRingConsumerRelease(&Queue->freeRing, available);
-						XskRingProducerSubmit(&Queue->txRing, available);
-
-						processed += available;
-						notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
-					}
-					g_downSentCount += available;
-				}
-			}
-			else if (mode == ModeUp) {
-				//if (g_upReceiveCount > Queue->fpg) {
-				if (g_upReceiveCount > Queue->waitBatch) {
-					// Got fpg frames as one upload request. Ack to the sender and reset the g_upReceiveCount.
-					available =
-						RingPairReserve(
-								&Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, 1);
-					//available =
-					//    RingPairReserve(
-					//        &Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, nextsent);
-					//-huajianwang:eelat
-
-					if (available > 0) {
-						WriteTxDownPackets(Queue, consumerIndex, producerIndex, available);
-						XskRingConsumerRelease(&Queue->freeRing, available);
-						XskRingProducerSubmit(&Queue->txRing, available);
-
-						processed += available;
-						notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
-					}
-					g_upReceiveCount = 0;
-				}
-			}
-
-			if (Wait &&
-					XskRingConsumerReserve(&Queue->compRing, 1, &consumerIndex) == 0 &&
-					XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
-				notifyFlags |= XSK_NOTIFY_FLAG_WAIT_TX;
-			}
-
-			if (Queue->pollMode == XSK_POLL_MODE_SOCKET) {
-				//
-				// If socket poll mode is supported by the program, always enable pokes.
-				//
 				notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
 			}
+			g_downSentCount += available;
+		}
+	}
+	else if (mode == ModeUp) {
+		//if (g_upReceiveCount > Queue->fpg) {
+		if (g_upReceiveCount > Queue->waitBatch) {
+			// Got fpg frames as one upload request. Ack to the sender and reset the g_upReceiveCount.
+			available =
+				RingPairReserve(
+					&Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, 1);
+			//available =
+			//    RingPairReserve(
+			//        &Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, nextsent);
+			//-huajianwang:eelat
 
-			if (notifyFlags != 0) {
-				NotifyDriver(Queue, notifyFlags);
+			if (available > 0) {
+				WriteTxDownPackets(Queue, consumerIndex, producerIndex, available);
+				XskRingConsumerRelease(&Queue->freeRing, available);
+				XskRingProducerSubmit(&Queue->txRing, available);
+
+				processed += available;
+				notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+			}
+			g_upReceiveCount = 0;
+		}
+	}
+
+	if (Wait &&
+		XskRingConsumerReserve(&Queue->compRing, 1, &consumerIndex) == 0 &&
+		XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
+		notifyFlags |= XSK_NOTIFY_FLAG_WAIT_TX;
+	}
+
+	if (Queue->pollMode == XSK_POLL_MODE_SOCKET) {
+		//
+		// If socket poll mode is supported by the program, always enable pokes.
+		//
+		notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+	}
+
+	if (notifyFlags != 0) {
+		NotifyDriver(Queue, notifyFlags);
+	}
+
+	return processed;
+
+}
+
+UINT32
+ProcessFwd(
+	MY_QUEUE * Queue,
+	BOOLEAN Wait
+)
+{
+	XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
+	UINT32 available;
+	UINT32 consumerIndex;
+	UINT32 producerIndex;
+	UINT32 processed = 0;
+
+	//
+	// Move packets from the RX ring to the TX ring.
+	//
+	available =
+		RingPairReserve(
+			&Queue->rxRing, &consumerIndex, &Queue->txRing, &producerIndex, Queue->iobatchsize);
+	if (available > 0) {
+		for (UINT32 i = 0; i < available; i++) {
+			XSK_BUFFER_DESCRIPTOR* rxDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&Queue->rxRing, consumerIndex++);
+			XSK_BUFFER_DESCRIPTOR* txDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&Queue->txRing, producerIndex++);
+
+			printf_verbose("Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
+				rxDesc->Address.BaseAddress, rxDesc->Address.Offset, rxDesc->Length);
+
+			txDesc->Address = rxDesc->Address;
+			txDesc->Length = rxDesc->Length;
+
+			if (Queue->flags.rxInject == Queue->flags.txInspect) {
+				//
+				// Swap MAC addresses.
+				//
+				CHAR* ethHdr =
+					(CHAR*)Queue->umemReg.Address + txDesc->Address.BaseAddress +
+					txDesc->Address.Offset;
+				CHAR tmp[6];
+				memcpy(tmp, ethHdr, sizeof(tmp));
+				memcpy(ethHdr, ethHdr + 6, sizeof(tmp));
+				memcpy(ethHdr + 6, tmp, sizeof(tmp));
+
+				CHAR* ipAddr = ethHdr + 26;
+				CHAR ip[4];
+				memcpy(ip, ipAddr, 4);
+				memcpy(ipAddr, ipAddr + 4, 4);
+				memcpy(ipAddr + 4, ip, 4);
+
+				CHAR* portAddr = ethHdr + 34;
+				CHAR port[2];
+				memcpy(port, portAddr, 2);
+				memcpy(portAddr, portAddr + 2, 2);
+				memcpy(portAddr + 2, port, 2);
 			}
 
-			return processed;
+			printf_verbose("Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
+				txDesc->Address.BaseAddress, txDesc->Address.Offset, txDesc->Length);
+		}
 
+		XskRingConsumerRelease(&Queue->rxRing, available);
+		XskRingProducerSubmit(&Queue->txRing, available);
+
+		processed += available;
+		notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+	}
+
+	//
+	// Move packets from the completion ring to the free ring.
+	//
+	available =
+		RingPairReserve(
+			&Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
+	if (available > 0) {
+		for (UINT32 i = 0; i < available; i++) {
+			UINT64* compDesc = (UINT64*)XskRingGetElement(&Queue->compRing, consumerIndex++);
+			UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, producerIndex++);
+
+			*freeDesc = *compDesc;
+
+			printf_verbose("Consuming COMP entry {address:%llu}\n", *compDesc);
+		}
+
+		XskRingConsumerRelease(&Queue->compRing, available);
+		XskRingProducerSubmit(&Queue->freeRing, available);
+
+		processed += available;
+		Queue->packetCount += available;
+
+		if (XskRingProducerReserve(&Queue->txRing, MAXUINT32, &producerIndex) !=
+			Queue->txRing.Size) {
+			notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+		}
+	}
+
+	//
+	// Move packets from the free ring to the fill ring.
+	//
+	available =
+		RingPairReserve(
+			&Queue->freeRing, &consumerIndex, &Queue->fillRing, &producerIndex, Queue->iobatchsize);
+	if (available > 0) {
+		for (UINT32 i = 0; i < available; i++) {
+			UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, consumerIndex++);
+			UINT64* fillDesc = (UINT64*)XskRingGetElement(&Queue->fillRing, producerIndex++);
+
+			*fillDesc = *freeDesc;
+
+			printf_verbose("Producing FILL entry {address:%llu}\n", *freeDesc);
+		}
+
+		XskRingConsumerRelease(&Queue->freeRing, available);
+		XskRingProducerSubmit(&Queue->fillRing, available);
+
+		processed += available;
+		notifyFlags |= XSK_NOTIFY_FLAG_POKE_RX;
+	}
+
+	if (Wait &&
+		XskRingConsumerReserve(&Queue->rxRing, 1, &consumerIndex) == 0 &&
+		XskRingConsumerReserve(&Queue->compRing, 1, &consumerIndex) == 0 &&
+		XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
+		notifyFlags |= (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX);
+	}
+
+	if (Queue->pollMode == XSK_POLL_MODE_SOCKET) {
+		//
+		// If socket poll mode is supported by the program, always enable pokes.
+		//
+		notifyFlags |= (XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_POKE_TX);
+	}
+
+	if (notifyFlags != 0) {
+		NotifyDriver(Queue, notifyFlags);
+	}
+
+	return processed;
+}
+
+VOID
+DoFwdMode(
+	MY_THREAD * Thread
+)
+{
+	for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
+		MY_QUEUE* queue = &Thread->queues[qIndex];
+
+		queue->flags.rx = TRUE;
+		queue->flags.tx = TRUE;
+		SetupSock(ifindex, queue);
+		queue->lastTick = GetTickCount64();
+	}
+
+	printf("Forwarding...\n");
+	SetEvent(Thread->readyEvent);
+
+	while (!ReadBooleanNoFence(&done)) {
+		BOOLEAN Processed = FALSE;
+
+		for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
+			Processed |= !!ProcessFwd(&Thread->queues[qIndex], Thread->wait);
+		}
+
+		if (!Processed) {
+			for (UINT32 i = 0; i < Thread->yieldCount; i++) {
+				YieldProcessor();
+			}
+		}
+
+	}
+}
+
+// Download "serving" mode: count received packets and response when it reach FPG and will reset it.
+VOID
+DoDownMode(
+	MY_THREAD * Thread
+)
+{
+	for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
+		MY_QUEUE* queue = &Thread->queues[qIndex];
+
+		if (Thread->queues[qIndex].txPatternLength > 0) {
+			queue->flags.tx = TRUE;
+			queue->flags.rx = FALSE;
+		}
+		else {
+			queue->flags.rx = TRUE;
+			queue->flags.tx = FALSE;
+		}
+		SetupSock(ifindex, queue);
+		queue->lastTick = GetTickCount64();
+	}
+
+	printf("Down Forwarding...\n");
+	SetEvent(Thread->readyEvent);
+
+	while (!ReadBooleanNoFence(&done)) {
+		BOOLEAN Processed = FALSE;
+
+		for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
+			//Processed |= !!ProcessFwd(&Thread->queues[qIndex], Thread->wait);
+			if (Thread->queues[qIndex].txPatternLength > 0) {
+				Processed |= GenerateTxAsRsp(&Thread->queues[qIndex], Thread->wait);
+			}
+			else {
+				Processed |= !!ProcessRxAsReq(&Thread->queues[qIndex], Thread->wait);
+			}
+		}
+
+		if (!Processed) {
+			for (UINT32 i = 0; i < Thread->yieldCount; i++) {
+				YieldProcessor();
+			}
+		}
+	}
+
+}
+
+UINT32
+ProcessLat(
+	MY_QUEUE * Queue,
+	BOOLEAN Wait
+)
+{
+	XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
+	UINT32 available;
+	UINT32 consumerIndex;
+	UINT32 producerIndex;
+	UINT32 processed = 0;
+
+	//
+	// Move frames from the RX ring to the RX fill ring, recording the timestamp
+	// deltas as we go.
+	//
+	available =
+		RingPairReserve(
+			&Queue->rxRing, &consumerIndex, &Queue->fillRing, &producerIndex, Queue->iobatchsize);
+	if (available > 0) {
+		LARGE_INTEGER NowQpc;
+		VERIFY(QueryPerformanceCounter(&NowQpc));
+
+		for (UINT32 i = 0; i < available; i++) {
+			XSK_BUFFER_DESCRIPTOR* rxDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&Queue->rxRing, consumerIndex++);
+			UINT64* fillDesc = (UINT64*)XskRingGetElement(&Queue->fillRing, producerIndex++);
+
+			printf_verbose(
+				"Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
+				rxDesc->Address.BaseAddress, rxDesc->Address.Offset,
+				rxDesc->Length);
+
+			INT64 UNALIGNED* Timestamp = (INT64 UNALIGNED*)
+				((CHAR*)Queue->umemReg.Address + rxDesc->Address.BaseAddress +
+					rxDesc->Address.Offset + Queue->txPatternLength);
+
+			printf_verbose("latency: %lld\n", NowQpc.QuadPart - *Timestamp);
+
+			if (Queue->latIndex < Queue->latSamplesCount) {
+				Queue->latSamples[Queue->latIndex++] = NowQpc.QuadPart - *Timestamp;
 			}
 
-			UINT32
-				ProcessFwd(
-						MY_QUEUE * Queue,
-						BOOLEAN Wait
-					  )
-				{
-					XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
-					UINT32 available;
-					UINT32 consumerIndex;
-					UINT32 producerIndex;
-					UINT32 processed = 0;
-
-					//
-					// Move packets from the RX ring to the TX ring.
-					//
-					available =
-						RingPairReserve(
-								&Queue->rxRing, &consumerIndex, &Queue->txRing, &producerIndex, Queue->iobatchsize);
-					if (available > 0) {
-						for (UINT32 i = 0; i < available; i++) {
-							XSK_BUFFER_DESCRIPTOR* rxDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&Queue->rxRing, consumerIndex++);
-							XSK_BUFFER_DESCRIPTOR* txDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&Queue->txRing, producerIndex++);
-
-							printf_verbose("Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
-									rxDesc->Address.BaseAddress, rxDesc->Address.Offset, rxDesc->Length);
-
-							txDesc->Address = rxDesc->Address;
-							txDesc->Length = rxDesc->Length;
-
-							if (Queue->flags.rxInject == Queue->flags.txInspect) {
-								//
-								// Swap MAC addresses.
-								//
-								CHAR* ethHdr =
-									(CHAR*)Queue->umemReg.Address + txDesc->Address.BaseAddress +
-									txDesc->Address.Offset;
-								CHAR tmp[6];
-								memcpy(tmp, ethHdr, sizeof(tmp));
-								memcpy(ethHdr, ethHdr + 6, sizeof(tmp));
-								memcpy(ethHdr + 6, tmp, sizeof(tmp));
-
-								CHAR* ipAddr = ethHdr + 26;
-								CHAR ip[4];
-								memcpy(ip, ipAddr, 4);
-								memcpy(ipAddr, ipAddr + 4, 4);
-								memcpy(ipAddr + 4, ip, 4);
-
-								CHAR* portAddr = ethHdr + 34;
-								CHAR port[2];
-								memcpy(port, portAddr, 2);
-								memcpy(portAddr, portAddr + 2, 2);
-								memcpy(portAddr + 2, port, 2);
-							}
-
-							printf_verbose("Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
-									txDesc->Address.BaseAddress, txDesc->Address.Offset, txDesc->Length);
-						}
-
-						XskRingConsumerRelease(&Queue->rxRing, available);
-						XskRingProducerSubmit(&Queue->txRing, available);
-
-						processed += available;
-						notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
-					}
-
-					//
-					// Move packets from the completion ring to the free ring.
-					//
-					available =
-						RingPairReserve(
-								&Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
-					if (available > 0) {
-						for (UINT32 i = 0; i < available; i++) {
-							UINT64* compDesc = (UINT64*)XskRingGetElement(&Queue->compRing, consumerIndex++);
-							UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, producerIndex++);
-
-							*freeDesc = *compDesc;
-
-							printf_verbose("Consuming COMP entry {address:%llu}\n", *compDesc);
-						}
-
-						XskRingConsumerRelease(&Queue->compRing, available);
-						XskRingProducerSubmit(&Queue->freeRing, available);
-
-						processed += available;
-						Queue->packetCount += available;
-
-						if (XskRingProducerReserve(&Queue->txRing, MAXUINT32, &producerIndex) !=
-								Queue->txRing.Size) {
-							notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
-						}
-					}
-
-					//
-					// Move packets from the free ring to the fill ring.
-					//
-					available =
-						RingPairReserve(
-								&Queue->freeRing, &consumerIndex, &Queue->fillRing, &producerIndex, Queue->iobatchsize);
-					if (available > 0) {
-						for (UINT32 i = 0; i < available; i++) {
-							UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, consumerIndex++);
-							UINT64* fillDesc = (UINT64*)XskRingGetElement(&Queue->fillRing, producerIndex++);
-
-							*fillDesc = *freeDesc;
-
-							printf_verbose("Producing FILL entry {address:%llu}\n", *freeDesc);
-						}
-
-						XskRingConsumerRelease(&Queue->freeRing, available);
-						XskRingProducerSubmit(&Queue->fillRing, available);
-
-						processed += available;
-						notifyFlags |= XSK_NOTIFY_FLAG_POKE_RX;
-					}
-
-					if (Wait &&
-							XskRingConsumerReserve(&Queue->rxRing, 1, &consumerIndex) == 0 &&
-							XskRingConsumerReserve(&Queue->compRing, 1, &consumerIndex) == 0 &&
-							XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
-						notifyFlags |= (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX);
-					}
-
-					if (Queue->pollMode == XSK_POLL_MODE_SOCKET) {
-						//
-						// If socket poll mode is supported by the program, always enable pokes.
-						//
-						notifyFlags |= (XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_POKE_TX);
-					}
-
-					if (notifyFlags != 0) {
-						NotifyDriver(Queue, notifyFlags);
-					}
-
-					return processed;
-				}
-
-			VOID
-				DoFwdMode(
-						MY_THREAD * Thread
-					 )
-				{
-					for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-						MY_QUEUE* queue = &Thread->queues[qIndex];
-
-						queue->flags.rx = TRUE;
-						queue->flags.tx = TRUE;
-						SetupSock(ifindex, queue);
-						queue->lastTick = GetTickCount64();
-					}
-
-					printf("Forwarding...\n");
-					SetEvent(Thread->readyEvent);
-
-					while (!ReadBooleanNoFence(&done)) {
-						BOOLEAN Processed = FALSE;
-
-						for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-							Processed |= !!ProcessFwd(&Thread->queues[qIndex], Thread->wait);
-						}
-
-						if (!Processed) {
-							for (UINT32 i = 0; i < Thread->yieldCount; i++) {
-								YieldProcessor();
-							}
-						}
-
-					}
-				}
-
-			// Download "serving" mode: count received packets and response when it reach FPG and will reset it.
-			VOID
-				DoDownMode(
-						MY_THREAD * Thread
-					  )
-				{
-					for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-						MY_QUEUE* queue = &Thread->queues[qIndex];
-
-						if (Thread->queues[qIndex].txPatternLength > 0) {
-							queue->flags.tx = TRUE;
-							queue->flags.rx = FALSE;
-						}
-						else {
-							queue->flags.rx = TRUE;
-							queue->flags.tx = FALSE;
-						}
-						SetupSock(ifindex, queue);
-						queue->lastTick = GetTickCount64();
-					}
-
-					printf("Down Forwarding...\n");
-					SetEvent(Thread->readyEvent);
-
-					while (!ReadBooleanNoFence(&done)) {
-						BOOLEAN Processed = FALSE;
-
-						for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-							//Processed |= !!ProcessFwd(&Thread->queues[qIndex], Thread->wait);
-							if (Thread->queues[qIndex].txPatternLength > 0) {
-								Processed |= GenerateTxAsRsp(&Thread->queues[qIndex], Thread->wait);
-							}
-							else{
-								Processed |= !!ProcessRxAsReq(&Thread->queues[qIndex], Thread->wait);
-							}
-						}
-
-						if (!Processed) {
-							for (UINT32 i = 0; i < Thread->yieldCount; i++) {
-								YieldProcessor();
-							}
-						}
-					}
-
-				}
-
-			UINT32
-				ProcessLat(
-						MY_QUEUE * Queue,
-						BOOLEAN Wait
-					  )
-				{
-					XSK_NOTIFY_FLAGS notifyFlags = XSK_NOTIFY_FLAG_NONE;
-					UINT32 available;
-					UINT32 consumerIndex;
-					UINT32 producerIndex;
-					UINT32 processed = 0;
-
-					//
-					// Move frames from the RX ring to the RX fill ring, recording the timestamp
-					// deltas as we go.
-					//
-					available =
-						RingPairReserve(
-								&Queue->rxRing, &consumerIndex, &Queue->fillRing, &producerIndex, Queue->iobatchsize);
-					if (available > 0) {
-						LARGE_INTEGER NowQpc;
-						VERIFY(QueryPerformanceCounter(&NowQpc));
-
-						for (UINT32 i = 0; i < available; i++) {
-							XSK_BUFFER_DESCRIPTOR* rxDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&Queue->rxRing, consumerIndex++);
-							UINT64* fillDesc = (UINT64*)XskRingGetElement(&Queue->fillRing, producerIndex++);
-
-							printf_verbose(
-									"Consuming RX entry   {address:%llu, offset:%llu, length:%d}\n",
-									rxDesc->Address.BaseAddress, rxDesc->Address.Offset,
-									rxDesc->Length);
-
-							INT64 UNALIGNED* Timestamp = (INT64 UNALIGNED*)
-								((CHAR*)Queue->umemReg.Address + rxDesc->Address.BaseAddress +
-								 rxDesc->Address.Offset + Queue->txPatternLength);
-
-							printf_verbose("latency: %lld\n", NowQpc.QuadPart - *Timestamp);
-
-							if (Queue->latIndex < Queue->latSamplesCount) {
-								Queue->latSamples[Queue->latIndex++] = NowQpc.QuadPart - *Timestamp;
-							}
-
-							*fillDesc = rxDesc->Address.BaseAddress;
-
-							printf_verbose("Producing FILL entry {address:%llu}\n", *fillDesc);
-						}
-
-						XskRingConsumerRelease(&Queue->rxRing, available);
-						XskRingProducerSubmit(&Queue->fillRing, available);
-
-						processed += available;
-						Queue->packetCount += available;
-
-						notifyFlags |= XSK_NOTIFY_FLAG_POKE_RX;
-					}
-
-					//
-					// Move frames from the TX completion ring to the free ring.
-					//
-					available =
-						RingPairReserve(
-								&Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
-					if (available > 0) {
-						ReadCompletionPackets(Queue, consumerIndex, producerIndex, available);
-						XskRingConsumerRelease(&Queue->compRing, available);
-						XskRingProducerSubmit(&Queue->freeRing, available);
-						processed += available;
-
-						if (XskRingProducerReserve(&Queue->txRing, MAXUINT32, &producerIndex) !=
-								Queue->txRing.Size) {
-							notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
-						}
-					}
-
-					//
-					// Move frames from the free ring to the TX ring, stamping the current time
-					// onto each frame.
-					//
-					available =
-						RingPairReserve(
-								&Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, Queue->iobatchsize);
-					if (available > 0) {
-						LARGE_INTEGER NowQpc;
-						VERIFY(QueryPerformanceCounter(&NowQpc));
-
-						for (UINT32 i = 0; i < available; i++) {
-							UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, consumerIndex++);
-							XSK_BUFFER_DESCRIPTOR* txDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&Queue->txRing, producerIndex++);
-
-							INT64 UNALIGNED* Timestamp = (INT64 UNALIGNED*)
-								((CHAR*)Queue->umemReg.Address + *freeDesc +
-								 Queue->umemReg.Headroom + Queue->txPatternLength);
-							*Timestamp = NowQpc.QuadPart;
-
-							txDesc->Address.BaseAddress = *freeDesc;
-							assert(Queue->umemReg.Headroom <= MAXUINT16);
-							txDesc->Address.Offset = Queue->umemReg.Headroom;
-							txDesc->Length = Queue->txiosize;
-
-							printf_verbose(
-									"Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
-									txDesc->Address.BaseAddress, txDesc->Address.Offset, txDesc->Length);
-						}
-
-						XskRingConsumerRelease(&Queue->freeRing, available);
-						XskRingProducerSubmit(&Queue->txRing, available);
-
-						processed += available;
-						notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
-					}
-
-					if (Wait &&
-							XskRingConsumerReserve(&Queue->rxRing, 1, &consumerIndex) == 0 &&
-							XskRingConsumerReserve(&Queue->compRing, 1, &consumerIndex) == 0 &&
-							XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
-						notifyFlags |= (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX);
-					}
-
-					if (Queue->pollMode == XSK_POLL_MODE_SOCKET) {
-						//
-						// If socket poll mode is supported by the program, always enable pokes.
-						//
-						notifyFlags |= (XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_POKE_TX);
-					}
-
-					if (notifyFlags != 0) {
-						NotifyDriver(Queue, notifyFlags);
-					}
-
-					return processed;
-				}
-
-			VOID
-				DoLatMode(
-						MY_THREAD * Thread
-					 )
-				{
-					for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-						MY_QUEUE* queue = &Thread->queues[qIndex];
-						UINT32 consumerIndex;
-						UINT32 producerIndex;
-						UINT32 available;
-
-						queue->flags.rx = TRUE;
-						queue->flags.tx = TRUE;
-						SetupSock(ifindex, queue);
-						queue->lastTick = GetTickCount64();
-
-						//
-						// Fill up the RX fill ring. Once this initial fill is performed, the
-						// RX fill ring and RX ring operate in a closed loop.
-						//
-						available = XskRingProducerReserve(&queue->fillRing, queue->ringsize, &producerIndex);
-						ASSERT_FRE(available == queue->ringsize);
-						available = XskRingConsumerReserve(&queue->freeRing, queue->ringsize, &consumerIndex);
-						ASSERT_FRE(available == queue->ringsize);
-						WriteFillPackets(queue, consumerIndex, producerIndex, available);
-						XskRingConsumerRelease(&queue->freeRing, available);
-						XskRingProducerSubmit(&queue->fillRing, available);
-					}
-
-					printf("Probing latency...\n");
-					SetEvent(Thread->readyEvent);
-
-					while (!ReadBooleanNoFence(&done)) {
-						BOOLEAN Processed = FALSE;
-
-						for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-							Processed |= !!ProcessLat(&Thread->queues[qIndex], Thread->wait);
-						}
-
-						if (!Processed) {
-							for (UINT32 i = 0; i < Thread->yieldCount; i++) {
-								YieldProcessor();
-							}
-						}
-					}
-				}
-
-			VOID
-				PrintUsage(
-						INT Line
-					  )
-				{
-					printf_error("Line:%d\n", Line);
-					ABORT(HELP);
-				}
-
-			VOID
-				ParseQueueArgs(
-						MY_QUEUE * Queue,
-						INT argc,
-						CHAR * *argv
-					      )
-				{
-					Queue->queueId = -1;
-					Queue->xdpMode = XdpModeSystem;
-					Queue->umemsize = DEFAULT_UMEM_SIZE;
-					Queue->umemchunksize = DEFAULT_UMEM_CHUNK_SIZE;
-					Queue->umemheadroom = DEFAULT_UMEM_HEADROOM;
-					Queue->iobatchsize = DEFAULT_IO_BATCH;
-					Queue->pollMode = XSK_POLL_MODE_DEFAULT;
-					Queue->flags.optimizePoking = TRUE;
-					Queue->txiosize = DEFAULT_TX_IO_SIZE;
-					Queue->latSamplesCount = DEFAULT_LAT_COUNT;
-
-					Queue->txPatternLength = 0; 
-					//huajianwang:eelat
-					Queue->ackBatch = DEFAULT_ACK_BATCH;
-					Queue->waitBatch = DEFAULT_WAIT_BATCH;
-					Queue->reqBatch = DEFAULT_REQ_BATCH;
-					Queue->reqPPS = DEFAULT_REQ_RATE;
-					Queue->reqSamples = DEFAULT_REQ_SAMPLES;
-					Queue->bShouldExit = false;
-					//Queue->fpg = 1;
-					//-huajianwang:eelat
-
-					for (INT i = 0; i < argc; i++) {
-						printf("%s\n", argv[i]);
-						if (!_stricmp(argv[i], "-id")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							Queue->queueId = atoi(argv[i]);
-						}
-						else if (!strcmp(argv[i], "-ring_size")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							Queue->ringsize = atoi(argv[i]);
-						}
-						else if (!strcmp(argv[i], "-c")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							Queue->umemchunksize = atoi(argv[i]);
-						}
-						else if (!_stricmp(argv[i], "-txio")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							Queue->txiosize = atoi(argv[i]);
-						}
-						else if (!strcmp(argv[i], "-u")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							if (!ParseUInt64A(argv[i], &Queue->umemsize)) {
-								Usage();
-							}
-						}
-						else if (!strcmp(argv[i], "-b")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							Queue->iobatchsize = atoi(argv[i]);
-							//huajianwang:eelat
-						}
-						else if (!strcmp(argv[i], "-reqpps")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							Queue->reqPPS = atoi(argv[i]);
-						}
-						else if (!strcmp(argv[i], "-reqsamples")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							Queue->reqSamples = atoi(argv[i]);
-						}
-						else if (!strcmp(argv[i], "-reqbatch")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							Queue->reqBatch = atoi(argv[i]);
-							Queue->sentInBatch = 0;
-							Queue->received = 0;
-							Queue->doneSamplesOnTxMode = 0;
-							//-huajianwang:eelat
-						}
-						else if (!strcmp(argv[i], "-ackbatch")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							Queue->ackBatch = atoi(argv[i]);
-							if (mode != ModeDown) {
-								printf("ackbatch is only valid in Down mode.\n");
-								Usage();
-							}
-						}
-						else if (!strcmp(argv[i], "-waitbatch")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							Queue->waitBatch = atoi(argv[i]);
-							if (mode != ModeUp) {
-								printf("waitbatch is only valid in Up mode.\n");
-								Usage();
-							}
-						}
-						else if (!strcmp(argv[i], "-h")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							Queue->umemheadroom = atoi(argv[i]);
-						}
-						else if (!strcmp(argv[i], "-s")) {
-							Queue->flags.periodicStats = TRUE;
-						}
-						else if (!_stricmp(argv[i], "-ignore_needpoke")) {
-							Queue->flags.optimizePoking = FALSE;
-						}
-						else if (!_stricmp(argv[i], "-poll")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							if (!_stricmp(argv[i], "system")) {
-								Queue->pollMode = XSK_POLL_MODE_DEFAULT;
-							}
-							else if (!_stricmp(argv[i], "busy")) {
-								Queue->pollMode = XSK_POLL_MODE_BUSY;
-							}
-							else if (!_stricmp(argv[i], "socket")) {
-								Queue->pollMode = XSK_POLL_MODE_SOCKET;
-							}
-							else {
-								Usage();
-							}
-						}
-						else if (!_stricmp(argv[i], "-xdp_mode")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							if (!_stricmp(argv[i], "system")) {
-								Queue->xdpMode = XdpModeSystem;
-							}
-							else if (!_stricmp(argv[i], "generic")) {
-								Queue->xdpMode = XdpModeGeneric;
-							}
-							else if (!_stricmp(argv[i], "native")) {
-								Queue->xdpMode = XdpModeNative;
-							}
-							else {
-								Usage();
-							}
-						}
-						else if (!strcmp(argv[i], "-rx_inject")) {
-							Queue->flags.rxInject = TRUE;
-						}
-						else if (!strcmp(argv[i], "-tx_inspect")) {
-							Queue->flags.txInspect = TRUE;
-						}
-						else if (!strcmp(argv[i], "-tx_pattern")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							Queue->txPatternLength = (UINT32)strlen(argv[i]);
-							ASSERT_FRE(Queue->txPatternLength > 0 && Queue->txPatternLength % 2 == 0);
-							Queue->txPatternLength /= 2;
-							Queue->txPattern = (UCHAR*)malloc(Queue->txPatternLength);
-							ASSERT_FRE(Queue->txPattern != NULL);
-							GetDescriptorPattern(Queue->txPattern, Queue->txPatternLength, argv[i]);
-						}
-						else if (!strcmp(argv[i], "-lat_count")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							Queue->latSamplesCount = atoi(argv[i]);
-						}
-						else {
-							Usage();
-						}
-					}
-
-					if (Queue->queueId == -1) {
-						Usage();
-					}
-
-					if (Queue->ringsize == 0) {
-						UINT64 RingSize64 = Queue->umemsize / Queue->umemchunksize;
-						ASSERT_FRE(RingSize64 <= MAXUINT32);
-						Queue->ringsize = (UINT32)RingSize64;
-					}
-
-					ASSERT_FRE(Queue->umemsize >= Queue->umemchunksize);
-					ASSERT_FRE(Queue->umemchunksize >= Queue->umemheadroom);
-					ASSERT_FRE(Queue->umemchunksize - Queue->umemheadroom >= Queue->txPatternLength);
-
-					if (mode == ModeLat
-							//huajianwang:eelat
-							|| mode == ModeRx
-							|| mode == ModeDown
-							|| mode == ModeUp
-							//-huajianwang:eelat
-					   ) {
-						ASSERT_FRE(
-								Queue->umemchunksize - Queue->umemheadroom >= Queue->txPatternLength + sizeof(UINT64));
-
-						/*
-						   Queue->latSamples = (INT64 *)malloc(Queue->latSamplesCount * sizeof(*Queue->latSamples));
-						   ASSERT_FRE(Queue->latSamples != NULL);
-						   ZeroMemory(Queue->latSamples, Queue->latSamplesCount * sizeof(*Queue->latSamples));
-
-						//huajianwang:eelat 
-						Queue->orderSamples = (UINT32*)malloc(Queue->latSamplesCount * sizeof(*Queue->orderSamples));
-						ASSERT_FRE(Queue->orderSamples != NULL);
-						ZeroMemory(Queue->orderSamples, Queue->latSamplesCount * sizeof(*Queue->orderSamples));
-						//-huajianwang:eelat 
-						*/
-						InitQueueSamples(Queue);
-					}
-				}
-
-			VOID
-				ParseThreadArgs(
-						MY_THREAD * Thread,
-						INT argc,
-						CHAR * *argv
-					       )
-				{
-					BOOLEAN groupSet = FALSE;
-					BOOLEAN cpuAffinitySet = FALSE;
-
-					Thread->wait = FALSE;
-					Thread->nodeAffinity = DEFAULT_NODE_AFFINITY;
-					Thread->idealCpu = DEFAULT_IDEAL_CPU;
-					Thread->cpuAffinity = DEFAULT_CPU_AFFINITY;
-					Thread->group = DEFAULT_GROUP;
-					Thread->yieldCount = DEFAULT_YIELD_COUNT;
-
-					for (INT i = 0; i < argc; i++) {
-						if (!strcmp(argv[i], "-q")) {
-							Thread->queueCount++;
-						}
-						else if (!_stricmp(argv[i], "-na")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							Thread->nodeAffinity = atoi(argv[i]);
-						}
-						else if (!_stricmp(argv[i], "-group")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							Thread->group = atoi(argv[i]);
-							groupSet = TRUE;
-						}
-						else if (!_stricmp(argv[i], "-ci")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							Thread->idealCpu = atoi(argv[i]);
-						}
-						else if (!_stricmp(argv[i], "-ca")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							Thread->cpuAffinity = (DWORD_PTR)_strtoui64(argv[i], NULL, 0);
-							cpuAffinitySet = TRUE;
-						}
-						else if (!strcmp(argv[i], "-w")) {
-							Thread->wait = TRUE;
-						}
-						else if (!_stricmp(argv[i], "-yield")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							Thread->yieldCount = atoi(argv[i]);
-						}
-						else if (Thread->queueCount == 0) {
-							Usage();
-						}
-					}
-
-					if (Thread->queueCount == 0) {
-						Usage();
-					}
-
-					if (Thread->wait && Thread->queueCount > 1) {
-						printf_error("Waiting with multiple sockets per thread is not supported\n");
-						Usage();
-					}
-
-					if (groupSet != cpuAffinitySet) {
-						Usage();
-					}
-
-					Thread->queues = (MY_QUEUE*)calloc(Thread->queueCount, sizeof(*Thread->queues));
-					ASSERT_FRE(Thread->queues != NULL);
-
-					INT qStart = -1;
-					INT qIndex = 0;
-					for (INT i = 0; i < argc; i++) {
-						if (!strcmp(argv[i], "-q")) {
-							if (qStart != -1) {
-								ParseQueueArgs(&Thread->queues[qIndex++], i - qStart, &argv[qStart]);
-							}
-							qStart = i + 1;
-						}
-					}
-					ParseQueueArgs(&Thread->queues[qIndex++], argc - qStart, &argv[qStart]);
-				}
-
-			VOID
-				ParseArgs(
-						MY_THREAD * *ThreadsPtr,
-						UINT32 * ThreadCountPtr,
-						INT argc,
-						CHAR * *argv
-					 )
-				{
-					INT i = 1;
-					UINT32 threadCount = 0;
-					MY_THREAD* threads = NULL;
-
-					if (argc < 4) {
-						Usage();
-					}
-
-					if (!_stricmp(argv[i], "rx")) {
-						mode = ModeRx;
-					}
-					else if (!_stricmp(argv[i], "tx")) {
-						mode = ModeTx;
-					}
-					else if (!_stricmp(argv[i], "fwd")) {
-						mode = ModeFwd;
-					}
-					else if (!_stricmp(argv[i], "lat")) {
-						mode = ModeLat;
-					}
-					else if (!_stricmp(argv[i], "down")) {
-						mode = ModeDown;
-					}
-					else if (!_stricmp(argv[i], "up")) {
-						mode = ModeUp;
-					}
-					else {
-						Usage();
-					}
-					modestr = argv[i];
-					++i;
-
-					if (strcmp(argv[i++], "-i")) {
-						Usage();
-					}
-					ifindex = atoi(argv[i++]);
-
-					while (i < argc) {
-						if (!strcmp(argv[i], "-t")) {
-							threadCount++;
-						}
-						else if (!strcmp(argv[i], "-p")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							udpDestPort = (UINT16)atoi(argv[i]);
-						}
-						else if (!strcmp(argv[i], "-d")) {
-							if (++i >= argc) {
-								Usage();
-							}
-							duration = atoi(argv[i]);
-						}
-						else if (!strcmp(argv[i], "-v")) {
-							verbose = TRUE;
-						}
-						else if (!_stricmp(argv[i], "-lp")) {
-							largePages = TRUE;
-							EnableLargePages();
-						}
-						else if (threadCount == 0) {
-							Usage();
-						}
-
-						++i;
-					}
-
-					if (ifindex == -1) {
-						Usage();
-					}
-
-					if (threadCount == 0) {
-						Usage();
-					}
-
-					threads = (MY_THREAD*)calloc(threadCount, sizeof(*threads));
-					ASSERT_FRE(threads != NULL);
-
-					INT tStart = -1;
-					INT tIndex = 0;
-					for (i = 0; i < argc; i++) {
-						if (!strcmp(argv[i], "-t")) {
-							if (tStart != -1) {
-								ParseThreadArgs(&threads[tIndex++], i - tStart, &argv[tStart]);
-							}
-							tStart = i + 1;
-						}
-					}
-					ParseThreadArgs(&threads[tIndex++], argc - tStart, &argv[tStart]);
-
-					*ThreadsPtr = threads;
-					*ThreadCountPtr = threadCount;
-				}
-
-			HRESULT
-				SetThreadAffinities(
-						MY_THREAD * Thread
-						)
-				{
-					if (Thread->nodeAffinity != DEFAULT_NODE_AFFINITY) {
-						GROUP_AFFINITY group;
-
-						printf_verbose("setting node affinity %d\n", Thread->nodeAffinity);
-						if (!GetNumaNodeProcessorMaskEx((USHORT)Thread->nodeAffinity, &group)) {
-							assert(FALSE);
-							return HRESULT_FROM_WIN32(GetLastError());
-						}
-						if (!SetThreadGroupAffinity(GetCurrentThread(), &group, NULL)) {
-							assert(FALSE);
-							return HRESULT_FROM_WIN32(GetLastError());
-						}
-					}
-
-					if (Thread->group != DEFAULT_GROUP) {
-						GROUP_AFFINITY group = { 0 };
-
-						printf_verbose("setting CPU affinity mask 0x%llu\n", Thread->cpuAffinity);
-						printf_verbose("setting group affinity %d\n", Thread->group);
-						group.Mask = Thread->cpuAffinity;
-						group.Group = (WORD)Thread->group;
-						if (!SetThreadGroupAffinity(GetCurrentThread(), &group, NULL)) {
-							assert(FALSE);
-							return HRESULT_FROM_WIN32(GetLastError());
-						}
-					}
-
-					if (Thread->idealCpu != DEFAULT_IDEAL_CPU) {
-						DWORD oldCpu;
-						printf_verbose("setting ideal CPU %d\n", Thread->idealCpu);
-						oldCpu = SetThreadIdealProcessor(GetCurrentThread(), Thread->idealCpu);
-						assert(oldCpu != -1);
-						if (oldCpu == -1) {
-							return HRESULT_FROM_WIN32(GetLastError());
-						}
-					}
-
-					return S_OK;
-				}
-
-			DWORD
-				WINAPI
-				DoThread(
-						LPVOID lpThreadParameter
-					)
-				{
-					MY_THREAD* thread = (MY_THREAD*)lpThreadParameter;
-					HRESULT res;
-
-					// Affinitize ASAP: memory allocations implicitly target the current
-					// NUMA node, including kernel XDP allocations.
-					res = SetThreadAffinities(thread);
-					ASSERT_FRE(res == S_OK);
-
-					if (mode == ModeRx) {
-						DoRxMode(thread);
-					}
-					else if (mode == ModeTx) {
-						// Here the TxMode is used to generate requests as controlled RPS on tokenbucket.
-						DoTxModeTokenBucket(thread);
-					}
-					else if (mode == ModeFwd) {
-						DoFwdMode(thread);
-					}
-					else if (mode == ModeLat) {
-						DoLatMode(thread);
-					}
-					else if (mode == ModeDown || mode == ModeUp) {
-						// Download "serving" mode: count received packets and response when it reach FPG and will reset it.
-						DoDownMode(thread);
-					}
-
-					return 0;
-				}
-
-			BOOL
-				WINAPI
-				ConsoleCtrlHandler(
-						DWORD CtrlType
-						)
-				{
-					UNREFERENCED_PARAMETER(CtrlType);
-
-					// Force graceful exit.
-					duration = 0;
-					SetEvent(periodicStatsEvent);
-
-					return TRUE;
-				}
-
-			INT
-				__cdecl
-				main(
-						INT argc,
-						CHAR * *argv
-				    )
-				{
-					MY_THREAD* threads;
-					UINT32 threadCount;
-
-					VERIFY(QueryPerformanceFrequency(&g_FreqQpc));
-
-					ParseArgs(&threads, &threadCount, argc, argv);
-
-					periodicStatsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-					ASSERT_FRE(periodicStatsEvent != NULL);
-
-					ASSERT_FRE(SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE));
-
-					for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
-						threads[tIndex].readyEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
-						ASSERT_FRE(threads[tIndex].readyEvent != NULL);
-						threads[tIndex].threadHandle =
-							CreateThread(NULL, 0, DoThread, &threads[tIndex], 0, NULL);
-						ASSERT_FRE(threads[tIndex].threadHandle != NULL);
-						WaitForSingleObject(threads[tIndex].readyEvent, INFINITE);
-					}
-
-					while (duration-- > 0) {
-						WaitForSingleObject(periodicStatsEvent, 1000);
-						for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
-							MY_THREAD* Thread = &threads[tIndex];
-							for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-								ProcessPeriodicStats(&Thread->queues[qIndex]);
-							}
-						}
-					}
-
-					WriteBooleanNoFence(&done, TRUE);
-
-					for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
-						MY_THREAD* Thread = &threads[tIndex];
-						WaitForSingleObject(Thread->threadHandle, INFINITE);
-						for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-							PrintFinalStats(&Thread->queues[qIndex]);
-						}
-					}
-
-					return 0;
-				}
+			*fillDesc = rxDesc->Address.BaseAddress;
+
+			printf_verbose("Producing FILL entry {address:%llu}\n", *fillDesc);
+		}
+
+		XskRingConsumerRelease(&Queue->rxRing, available);
+		XskRingProducerSubmit(&Queue->fillRing, available);
+
+		processed += available;
+		Queue->packetCount += available;
+
+		notifyFlags |= XSK_NOTIFY_FLAG_POKE_RX;
+	}
+
+	//
+	// Move frames from the TX completion ring to the free ring.
+	//
+	available =
+		RingPairReserve(
+			&Queue->compRing, &consumerIndex, &Queue->freeRing, &producerIndex, Queue->iobatchsize);
+	if (available > 0) {
+		ReadCompletionPackets(Queue, consumerIndex, producerIndex, available);
+		XskRingConsumerRelease(&Queue->compRing, available);
+		XskRingProducerSubmit(&Queue->freeRing, available);
+		processed += available;
+
+		if (XskRingProducerReserve(&Queue->txRing, MAXUINT32, &producerIndex) !=
+			Queue->txRing.Size) {
+			notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+		}
+	}
+
+	//
+	// Move frames from the free ring to the TX ring, stamping the current time
+	// onto each frame.
+	//
+	available =
+		RingPairReserve(
+			&Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, Queue->iobatchsize);
+	if (available > 0) {
+		LARGE_INTEGER NowQpc;
+		VERIFY(QueryPerformanceCounter(&NowQpc));
+
+		for (UINT32 i = 0; i < available; i++) {
+			UINT64* freeDesc = (UINT64*)XskRingGetElement(&Queue->freeRing, consumerIndex++);
+			XSK_BUFFER_DESCRIPTOR* txDesc = (XSK_BUFFER_DESCRIPTOR*)XskRingGetElement(&Queue->txRing, producerIndex++);
+
+			INT64 UNALIGNED* Timestamp = (INT64 UNALIGNED*)
+				((CHAR*)Queue->umemReg.Address + *freeDesc +
+					Queue->umemReg.Headroom + Queue->txPatternLength);
+			*Timestamp = NowQpc.QuadPart;
+
+			txDesc->Address.BaseAddress = *freeDesc;
+			assert(Queue->umemReg.Headroom <= MAXUINT16);
+			txDesc->Address.Offset = Queue->umemReg.Headroom;
+			txDesc->Length = Queue->txiosize;
+
+			printf_verbose(
+				"Producing TX entry {address:%llu, offset:%llu, length:%d}\n",
+				txDesc->Address.BaseAddress, txDesc->Address.Offset, txDesc->Length);
+		}
+
+		XskRingConsumerRelease(&Queue->freeRing, available);
+		XskRingProducerSubmit(&Queue->txRing, available);
+
+		processed += available;
+		notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
+	}
+
+	if (Wait &&
+		XskRingConsumerReserve(&Queue->rxRing, 1, &consumerIndex) == 0 &&
+		XskRingConsumerReserve(&Queue->compRing, 1, &consumerIndex) == 0 &&
+		XskRingConsumerReserve(&Queue->freeRing, 1, &consumerIndex) == 0) {
+		notifyFlags |= (XSK_NOTIFY_FLAG_WAIT_RX | XSK_NOTIFY_FLAG_WAIT_TX);
+	}
+
+	if (Queue->pollMode == XSK_POLL_MODE_SOCKET) {
+		//
+		// If socket poll mode is supported by the program, always enable pokes.
+		//
+		notifyFlags |= (XSK_NOTIFY_FLAG_POKE_RX | XSK_NOTIFY_FLAG_POKE_TX);
+	}
+
+	if (notifyFlags != 0) {
+		NotifyDriver(Queue, notifyFlags);
+	}
+
+	return processed;
+}
+
+VOID
+DoLatMode(
+	MY_THREAD * Thread
+)
+{
+	for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
+		MY_QUEUE* queue = &Thread->queues[qIndex];
+		UINT32 consumerIndex;
+		UINT32 producerIndex;
+		UINT32 available;
+
+		queue->flags.rx = TRUE;
+		queue->flags.tx = TRUE;
+		SetupSock(ifindex, queue);
+		queue->lastTick = GetTickCount64();
+
+		//
+		// Fill up the RX fill ring. Once this initial fill is performed, the
+		// RX fill ring and RX ring operate in a closed loop.
+		//
+		available = XskRingProducerReserve(&queue->fillRing, queue->ringsize, &producerIndex);
+		ASSERT_FRE(available == queue->ringsize);
+		available = XskRingConsumerReserve(&queue->freeRing, queue->ringsize, &consumerIndex);
+		ASSERT_FRE(available == queue->ringsize);
+		WriteFillPackets(queue, consumerIndex, producerIndex, available);
+		XskRingConsumerRelease(&queue->freeRing, available);
+		XskRingProducerSubmit(&queue->fillRing, available);
+	}
+
+	printf("Probing latency...\n");
+	SetEvent(Thread->readyEvent);
+
+	while (!ReadBooleanNoFence(&done)) {
+		BOOLEAN Processed = FALSE;
+
+		for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
+			Processed |= !!ProcessLat(&Thread->queues[qIndex], Thread->wait);
+		}
+
+		if (!Processed) {
+			for (UINT32 i = 0; i < Thread->yieldCount; i++) {
+				YieldProcessor();
+			}
+		}
+	}
+}
+
+VOID
+PrintUsage(
+	INT Line
+)
+{
+	printf_error("Line:%d\n", Line);
+	ABORT(HELP);
+}
+
+VOID
+ParseQueueArgs(
+	MY_QUEUE * Queue,
+	INT argc,
+	CHAR * *argv
+)
+{
+	Queue->queueId = -1;
+	Queue->xdpMode = XdpModeSystem;
+	Queue->umemsize = DEFAULT_UMEM_SIZE;
+	Queue->umemchunksize = DEFAULT_UMEM_CHUNK_SIZE;
+	Queue->umemheadroom = DEFAULT_UMEM_HEADROOM;
+	Queue->iobatchsize = DEFAULT_IO_BATCH;
+	Queue->pollMode = XSK_POLL_MODE_DEFAULT;
+	Queue->flags.optimizePoking = TRUE;
+	Queue->txiosize = DEFAULT_TX_IO_SIZE;
+	Queue->latSamplesCount = DEFAULT_LAT_COUNT;
+
+	Queue->txPatternLength = 0;
+	//huajianwang:eelat
+	Queue->ackBatch = DEFAULT_ACK_BATCH;
+	Queue->waitBatch = DEFAULT_WAIT_BATCH;
+	Queue->reqBatch = DEFAULT_REQ_BATCH;
+	Queue->reqPPS = DEFAULT_REQ_RATE;
+	Queue->reqSamples = DEFAULT_REQ_SAMPLES;
+	Queue->bShouldExit = false;
+	//Queue->fpg = 1;
+	//-huajianwang:eelat
+
+	for (INT i = 0; i < argc; i++) {
+		printf("%s\n", argv[i]);
+		if (!_stricmp(argv[i], "-id")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			Queue->queueId = atoi(argv[i]);
+		}
+		else if (!strcmp(argv[i], "-ring_size")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			Queue->ringsize = atoi(argv[i]);
+		}
+		else if (!strcmp(argv[i], "-c")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			Queue->umemchunksize = atoi(argv[i]);
+		}
+		else if (!_stricmp(argv[i], "-txio")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			Queue->txiosize = atoi(argv[i]);
+		}
+		else if (!strcmp(argv[i], "-u")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			if (!ParseUInt64A(argv[i], &Queue->umemsize)) {
+				Usage();
+			}
+		}
+		else if (!strcmp(argv[i], "-b")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			Queue->iobatchsize = atoi(argv[i]);
+			//huajianwang:eelat
+		}
+		else if (!strcmp(argv[i], "-reqpps")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			Queue->reqPPS = atoi(argv[i]);
+		}
+		else if (!strcmp(argv[i], "-reqsamples")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			Queue->reqSamples = atoi(argv[i]);
+		}
+		else if (!strcmp(argv[i], "-reqbatch")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			Queue->reqBatch = atoi(argv[i]);
+			Queue->sentInBatch = 0;
+			Queue->received = 0;
+			Queue->doneSamplesOnTxMode = 0;
+			//-huajianwang:eelat
+		}
+		else if (!strcmp(argv[i], "-ackbatch")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			Queue->ackBatch = atoi(argv[i]);
+			if (mode != ModeDown) {
+				printf("ackbatch is only valid in Down mode.\n");
+				Usage();
+			}
+		}
+		else if (!strcmp(argv[i], "-waitbatch")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			Queue->waitBatch = atoi(argv[i]);
+			if (mode != ModeUp) {
+				printf("waitbatch is only valid in Up mode.\n");
+				Usage();
+			}
+		}
+		else if (!strcmp(argv[i], "-h")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			Queue->umemheadroom = atoi(argv[i]);
+		}
+		else if (!strcmp(argv[i], "-s")) {
+			Queue->flags.periodicStats = TRUE;
+		}
+		else if (!_stricmp(argv[i], "-ignore_needpoke")) {
+			Queue->flags.optimizePoking = FALSE;
+		}
+		else if (!_stricmp(argv[i], "-poll")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			if (!_stricmp(argv[i], "system")) {
+				Queue->pollMode = XSK_POLL_MODE_DEFAULT;
+			}
+			else if (!_stricmp(argv[i], "busy")) {
+				Queue->pollMode = XSK_POLL_MODE_BUSY;
+			}
+			else if (!_stricmp(argv[i], "socket")) {
+				Queue->pollMode = XSK_POLL_MODE_SOCKET;
+			}
+			else {
+				Usage();
+			}
+		}
+		else if (!_stricmp(argv[i], "-xdp_mode")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			if (!_stricmp(argv[i], "system")) {
+				Queue->xdpMode = XdpModeSystem;
+			}
+			else if (!_stricmp(argv[i], "generic")) {
+				Queue->xdpMode = XdpModeGeneric;
+			}
+			else if (!_stricmp(argv[i], "native")) {
+				Queue->xdpMode = XdpModeNative;
+			}
+			else {
+				Usage();
+			}
+		}
+		else if (!strcmp(argv[i], "-rx_inject")) {
+			Queue->flags.rxInject = TRUE;
+		}
+		else if (!strcmp(argv[i], "-tx_inspect")) {
+			Queue->flags.txInspect = TRUE;
+		}
+		else if (!strcmp(argv[i], "-tx_pattern")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			Queue->txPatternLength = (UINT32)strlen(argv[i]);
+			ASSERT_FRE(Queue->txPatternLength > 0 && Queue->txPatternLength % 2 == 0);
+			Queue->txPatternLength /= 2;
+			Queue->txPattern = (UCHAR*)malloc(Queue->txPatternLength);
+			ASSERT_FRE(Queue->txPattern != NULL);
+			GetDescriptorPattern(Queue->txPattern, Queue->txPatternLength, argv[i]);
+		}
+		else if (!strcmp(argv[i], "-lat_count")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			Queue->latSamplesCount = atoi(argv[i]);
+		}
+		else {
+			Usage();
+		}
+	}
+
+	if (Queue->queueId == -1) {
+		Usage();
+	}
+
+	if (Queue->ringsize == 0) {
+		UINT64 RingSize64 = Queue->umemsize / Queue->umemchunksize;
+		ASSERT_FRE(RingSize64 <= MAXUINT32);
+		Queue->ringsize = (UINT32)RingSize64;
+	}
+
+	ASSERT_FRE(Queue->umemsize >= Queue->umemchunksize);
+	ASSERT_FRE(Queue->umemchunksize >= Queue->umemheadroom);
+	ASSERT_FRE(Queue->umemchunksize - Queue->umemheadroom >= Queue->txPatternLength);
+
+	if (mode == ModeLat
+		//huajianwang:eelat
+		|| mode == ModeRx
+		|| mode == ModeDown
+		|| mode == ModeUp
+		//-huajianwang:eelat
+		) {
+		ASSERT_FRE(
+			Queue->umemchunksize - Queue->umemheadroom >= Queue->txPatternLength + sizeof(UINT64));
+
+		/*
+		   Queue->latSamples = (INT64 *)malloc(Queue->latSamplesCount * sizeof(*Queue->latSamples));
+		   ASSERT_FRE(Queue->latSamples != NULL);
+		   ZeroMemory(Queue->latSamples, Queue->latSamplesCount * sizeof(*Queue->latSamples));
+
+		//huajianwang:eelat
+		Queue->orderSamples = (UINT32*)malloc(Queue->latSamplesCount * sizeof(*Queue->orderSamples));
+		ASSERT_FRE(Queue->orderSamples != NULL);
+		ZeroMemory(Queue->orderSamples, Queue->latSamplesCount * sizeof(*Queue->orderSamples));
+		//-huajianwang:eelat
+		*/
+		InitQueueSamples(Queue);
+	}
+}
+
+VOID
+ParseThreadArgs(
+	MY_THREAD * Thread,
+	INT argc,
+	CHAR * *argv
+)
+{
+	BOOLEAN groupSet = FALSE;
+	BOOLEAN cpuAffinitySet = FALSE;
+
+	Thread->wait = FALSE;
+	Thread->nodeAffinity = DEFAULT_NODE_AFFINITY;
+	Thread->idealCpu = DEFAULT_IDEAL_CPU;
+	Thread->cpuAffinity = DEFAULT_CPU_AFFINITY;
+	Thread->group = DEFAULT_GROUP;
+	Thread->yieldCount = DEFAULT_YIELD_COUNT;
+
+	for (INT i = 0; i < argc; i++) {
+		if (!strcmp(argv[i], "-q")) {
+			Thread->queueCount++;
+		}
+		else if (!_stricmp(argv[i], "-na")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			Thread->nodeAffinity = atoi(argv[i]);
+		}
+		else if (!_stricmp(argv[i], "-group")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			Thread->group = atoi(argv[i]);
+			groupSet = TRUE;
+		}
+		else if (!_stricmp(argv[i], "-ci")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			Thread->idealCpu = atoi(argv[i]);
+		}
+		else if (!_stricmp(argv[i], "-ca")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			Thread->cpuAffinity = (DWORD_PTR)_strtoui64(argv[i], NULL, 0);
+			cpuAffinitySet = TRUE;
+		}
+		else if (!strcmp(argv[i], "-w")) {
+			Thread->wait = TRUE;
+		}
+		else if (!_stricmp(argv[i], "-yield")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			Thread->yieldCount = atoi(argv[i]);
+		}
+		else if (Thread->queueCount == 0) {
+			Usage();
+		}
+	}
+
+	if (Thread->queueCount == 0) {
+		Usage();
+	}
+
+	if (Thread->wait && Thread->queueCount > 1) {
+		printf_error("Waiting with multiple sockets per thread is not supported\n");
+		Usage();
+	}
+
+	if (groupSet != cpuAffinitySet) {
+		Usage();
+	}
+
+	Thread->queues = (MY_QUEUE*)calloc(Thread->queueCount, sizeof(*Thread->queues));
+	ASSERT_FRE(Thread->queues != NULL);
+
+	INT qStart = -1;
+	INT qIndex = 0;
+	for (INT i = 0; i < argc; i++) {
+		if (!strcmp(argv[i], "-q")) {
+			if (qStart != -1) {
+				ParseQueueArgs(&Thread->queues[qIndex++], i - qStart, &argv[qStart]);
+			}
+			qStart = i + 1;
+		}
+	}
+	ParseQueueArgs(&Thread->queues[qIndex++], argc - qStart, &argv[qStart]);
+}
+
+VOID
+ParseArgs(
+	MY_THREAD * *ThreadsPtr,
+	UINT32 * ThreadCountPtr,
+	INT argc,
+	CHAR * *argv
+)
+{
+	INT i = 1;
+	UINT32 threadCount = 0;
+	MY_THREAD* threads = NULL;
+
+	if (argc < 4) {
+		Usage();
+	}
+
+	if (!_stricmp(argv[i], "rx")) {
+		mode = ModeRx;
+	}
+	else if (!_stricmp(argv[i], "tx")) {
+		mode = ModeTx;
+	}
+	else if (!_stricmp(argv[i], "fwd")) {
+		mode = ModeFwd;
+	}
+	else if (!_stricmp(argv[i], "lat")) {
+		mode = ModeLat;
+	}
+	else if (!_stricmp(argv[i], "down")) {
+		mode = ModeDown;
+	}
+	else if (!_stricmp(argv[i], "up")) {
+		mode = ModeUp;
+	}
+	else {
+		Usage();
+	}
+	modestr = argv[i];
+	++i;
+
+	if (strcmp(argv[i++], "-i")) {
+		Usage();
+	}
+	ifindex = atoi(argv[i++]);
+
+	while (i < argc) {
+		if (!strcmp(argv[i], "-t")) {
+			threadCount++;
+		}
+		else if (!strcmp(argv[i], "-p")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			udpDestPort = (UINT16)atoi(argv[i]);
+		}
+		else if (!strcmp(argv[i], "-d")) {
+			if (++i >= argc) {
+				Usage();
+			}
+			duration = atoi(argv[i]);
+		}
+		else if (!strcmp(argv[i], "-v")) {
+			verbose = TRUE;
+		}
+		else if (!_stricmp(argv[i], "-lp")) {
+			largePages = TRUE;
+			EnableLargePages();
+		}
+		else if (threadCount == 0) {
+			Usage();
+		}
+
+		++i;
+	}
+
+	if (ifindex == -1) {
+		Usage();
+	}
+
+	if (threadCount == 0) {
+		Usage();
+	}
+
+	threads = (MY_THREAD*)calloc(threadCount, sizeof(*threads));
+	ASSERT_FRE(threads != NULL);
+
+	INT tStart = -1;
+	INT tIndex = 0;
+	for (i = 0; i < argc; i++) {
+		if (!strcmp(argv[i], "-t")) {
+			if (tStart != -1) {
+				ParseThreadArgs(&threads[tIndex++], i - tStart, &argv[tStart]);
+			}
+			tStart = i + 1;
+		}
+	}
+	ParseThreadArgs(&threads[tIndex++], argc - tStart, &argv[tStart]);
+
+	*ThreadsPtr = threads;
+	*ThreadCountPtr = threadCount;
+}
+
+HRESULT
+SetThreadAffinities(
+	MY_THREAD * Thread
+)
+{
+	if (Thread->nodeAffinity != DEFAULT_NODE_AFFINITY) {
+		GROUP_AFFINITY group;
+
+		printf_verbose("setting node affinity %d\n", Thread->nodeAffinity);
+		if (!GetNumaNodeProcessorMaskEx((USHORT)Thread->nodeAffinity, &group)) {
+			assert(FALSE);
+			return HRESULT_FROM_WIN32(GetLastError());
+		}
+		if (!SetThreadGroupAffinity(GetCurrentThread(), &group, NULL)) {
+			assert(FALSE);
+			return HRESULT_FROM_WIN32(GetLastError());
+		}
+	}
+
+	if (Thread->group != DEFAULT_GROUP) {
+		GROUP_AFFINITY group = { 0 };
+
+		printf_verbose("setting CPU affinity mask 0x%llu\n", Thread->cpuAffinity);
+		printf_verbose("setting group affinity %d\n", Thread->group);
+		group.Mask = Thread->cpuAffinity;
+		group.Group = (WORD)Thread->group;
+		if (!SetThreadGroupAffinity(GetCurrentThread(), &group, NULL)) {
+			assert(FALSE);
+			return HRESULT_FROM_WIN32(GetLastError());
+		}
+	}
+
+	if (Thread->idealCpu != DEFAULT_IDEAL_CPU) {
+		DWORD oldCpu;
+		printf_verbose("setting ideal CPU %d\n", Thread->idealCpu);
+		oldCpu = SetThreadIdealProcessor(GetCurrentThread(), Thread->idealCpu);
+		assert(oldCpu != -1);
+		if (oldCpu == -1) {
+			return HRESULT_FROM_WIN32(GetLastError());
+		}
+	}
+
+	return S_OK;
+}
+
+DWORD
+WINAPI
+DoThread(
+	LPVOID lpThreadParameter
+)
+{
+	MY_THREAD* thread = (MY_THREAD*)lpThreadParameter;
+	HRESULT res;
+
+	// Affinitize ASAP: memory allocations implicitly target the current
+	// NUMA node, including kernel XDP allocations.
+	res = SetThreadAffinities(thread);
+	ASSERT_FRE(res == S_OK);
+
+	if (mode == ModeRx) {
+		DoRxMode(thread);
+	}
+	else if (mode == ModeTx) {
+		// Here the TxMode is used to generate requests as controlled RPS on tokenbucket.
+		DoTxModeTokenBucket(thread);
+	}
+	else if (mode == ModeFwd) {
+		DoFwdMode(thread);
+	}
+	else if (mode == ModeLat) {
+		DoLatMode(thread);
+	}
+	else if (mode == ModeDown || mode == ModeUp) {
+		// Download "serving" mode: count received packets and response when it reach FPG and will reset it.
+		DoDownMode(thread);
+	}
+
+	return 0;
+}
+
+BOOL
+WINAPI
+ConsoleCtrlHandler(
+	DWORD CtrlType
+)
+{
+	UNREFERENCED_PARAMETER(CtrlType);
+
+	// Force graceful exit.
+	duration = 0;
+	SetEvent(periodicStatsEvent);
+
+	return TRUE;
+}
+
+INT
+__cdecl
+main(
+	INT argc,
+	CHAR * *argv
+)
+{
+	MY_THREAD* threads;
+	UINT32 threadCount;
+
+	VERIFY(QueryPerformanceFrequency(&g_FreqQpc));
+
+	ParseArgs(&threads, &threadCount, argc, argv);
+
+	periodicStatsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	ASSERT_FRE(periodicStatsEvent != NULL);
+
+	ASSERT_FRE(SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE));
+
+	for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
+		threads[tIndex].readyEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
+		ASSERT_FRE(threads[tIndex].readyEvent != NULL);
+		threads[tIndex].threadHandle =
+			CreateThread(NULL, 0, DoThread, &threads[tIndex], 0, NULL);
+		ASSERT_FRE(threads[tIndex].threadHandle != NULL);
+		WaitForSingleObject(threads[tIndex].readyEvent, INFINITE);
+	}
+
+	while (duration-- > 0) {
+		WaitForSingleObject(periodicStatsEvent, 1000);
+		for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
+			MY_THREAD* Thread = &threads[tIndex];
+			for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
+				ProcessPeriodicStats(&Thread->queues[qIndex]);
+			}
+		}
+	}
+
+	WriteBooleanNoFence(&done, TRUE);
+
+	for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
+		MY_THREAD* Thread = &threads[tIndex];
+		WaitForSingleObject(Thread->threadHandle, INFINITE);
+		for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
+			PrintFinalStats(&Thread->queues[qIndex]);
+		}
+	}
+
+	return 0;
+}
