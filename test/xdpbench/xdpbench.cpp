@@ -90,7 +90,7 @@ CHAR* HELP =
 "   xskbench.exe lat -i 6 -t -q -id 0 -ring_size 8\n"
 ;
 
-UINT32 g_downSentCount = 0;
+UINT32 g_ackSentCount = 0;
 UINT32 g_upReceiveCount = 0;
 
 typedef enum {
@@ -1202,8 +1202,8 @@ ProcessRxAsReq(
 
 		processed += available;
 		Queue->packetCount += available;
-		//hjwang: reset the g_downSentCount flag to re start the downloading sending.
-		//When receive any packet, the g_downSentCount will be reset to restart the downloading process.
+		//hjwang: reset the g_ackSentCount flag to re start the downloading sending.
+		//When receive any packet, the g_ackSentCount will be reset to restart the downloading process.
 		// It is only for benchmarking.
 		if (mode == ModeUp) {
 			g_upReceiveCount += available;
@@ -1211,7 +1211,7 @@ ProcessRxAsReq(
 		else if (mode == ModeDown) {
 			//For Down mode, reset this value to trigger the sending packets as download response.
 			if (startRsp) {
-				g_downSentCount = 0;
+				g_ackSentCount = 0;
 			}
 		}
 	}
@@ -1270,7 +1270,6 @@ ProcessRx(
 
 		processed += available;
 		Queue->packetCount += available;
-		g_downSentCount = 0;
 	}
 
 	available =
@@ -1640,8 +1639,8 @@ GenerateTxAsRsp(
 
 	//huajianwang:eelat
 	if (mode == ModeDown) {
-		if (g_downSentCount < Queue->ackBatch) {
-			UINT32 nextsent = min(Queue->iobatchsize, Queue->ackBatch - g_downSentCount);
+		if (g_ackSentCount < Queue->ackBatch) {
+			UINT32 nextsent = min(Queue->iobatchsize, Queue->ackBatch - g_ackSentCount);
 			available =
 				RingPairReserve(
 					&Queue->freeRing, &consumerIndex, &Queue->txRing, &producerIndex, nextsent);
@@ -1655,7 +1654,7 @@ GenerateTxAsRsp(
 				processed += available;
 				notifyFlags |= XSK_NOTIFY_FLAG_POKE_TX;
 			}
-			g_downSentCount += available;
+			g_ackSentCount += available;
 		}
 	}
 	else if (mode == ModeUp) {
