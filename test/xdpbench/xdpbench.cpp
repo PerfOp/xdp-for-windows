@@ -796,17 +796,18 @@ PrintFinalLatStats(
 		}
 	}
 	printf(
-		"%-3s[%d]: min=%llu at %u P50=%llu P90=%llu P99=%llu P99.9=%llu P99.99=%llu P99.999=%llu P99.9999=%llu us rtt collecting latecies on %d th frame, packetSize %u \n",
+		"%-3s[%d]: min=%llu at %u P50=%llu P90=%llu P95=%llu P99=%llu P99.9=%llu P99.99=%llu P99.999=%llu P99.9999=%llu max=%llu us rtt collecting latecies on %d th frame, packetSize %u \n",
 		modestr, Queue->queueId,
-		//Queue->latSamples[0],
-		Queue->latSamples[recvStart], recvStart,
+		Queue->latSamples[0], recvStart,
 		Queue->latSamples[(UINT32)(Queue->latIndex * 0.5)],
 		Queue->latSamples[(UINT32)(Queue->latIndex * 0.9)],
+		Queue->latSamples[(UINT32)(Queue->latIndex * 0.95)],
 		Queue->latSamples[(UINT32)(Queue->latIndex * 0.99)],
 		Queue->latSamples[(UINT32)(Queue->latIndex * 0.999)],
 		Queue->latSamples[(UINT32)(Queue->latIndex * 0.9999)],
 		Queue->latSamples[(UINT32)(Queue->latIndex * 0.99999)],
 		Queue->latSamples[(UINT32)(Queue->latIndex * 0.999999)],
+		Queue->latSamples[(UINT32)(Queue->latIndex - 1)],
 		Queue->ackBatch,
 		maxRecvOrder);
 
@@ -836,21 +837,24 @@ PrintFinalLatStats(
 		else {
 			errno_t err = fopen_s(&fp, filename, "w");
 			if (err == 0 && fp != NULL) {
-				fprintf(fp, "runname,kbps,p50,p90,p99,p999,p9999,p99999,p999999\n");
+				fprintf(fp, "runname,pps,min,p50,p90,p95,p99,p999,p9999,p99999,p999999,max\n");
 			}
 		}
 
 		if (fp) {
-			fprintf(fp, "%s,%u,%llu,%llu,%llu,%llu,%llu,%llu,%llu\n",
+			fprintf(fp, "%s,%lu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu\n",
 				runname,
 				(uint32_t)(Queue->recvKpps * 1000),
+				Queue->latSamples[0],
 				Queue->latSamples[(UINT32)(Queue->latIndex * 0.5)],
 				Queue->latSamples[(UINT32)(Queue->latIndex * 0.9)],
+				Queue->latSamples[(UINT32)(Queue->latIndex * 0.95)],
 				Queue->latSamples[(UINT32)(Queue->latIndex * 0.99)],
 				Queue->latSamples[(UINT32)(Queue->latIndex * 0.999)],
 				Queue->latSamples[(UINT32)(Queue->latIndex * 0.9999)],
 				Queue->latSamples[(UINT32)(Queue->latIndex * 0.99999)],
-				Queue->latSamples[(UINT32)(Queue->latIndex * 0.999999)]
+				Queue->latSamples[(UINT32)(Queue->latIndex * 0.999999)],
+				Queue->latSamples[(UINT32)(Queue->latIndex - 1)]
 			);
 
 			fclose(fp);
@@ -902,32 +906,36 @@ PrintFinalLatStats(
 	qsort(Queue->orderSamples, Queue->latIndex, sizeof(*Queue->orderSamples), batchCmp);
 
 	printf(
-		"%-3s[%d]: min=%d P50=%d P90=%d P99=%d P99.9=%d P99.99=%d P99.999=%d P99.9999=%d /%d packets lost\n",
+		"%-3s[%d]: min=%d P50=%d P90=%d P95=%d P99=%d P99.9=%d P99.99=%d P99.999=%d P99.9999=%d max=%d /%d packets lost\n",
 		modestr, Queue->queueId,
 		Queue->orderSamples[0],
 		Queue->orderSamples[(UINT32)(Queue->latIndex * 0.5)],
 		Queue->orderSamples[(UINT32)(Queue->latIndex * 0.9)],
+		Queue->orderSamples[(UINT32)(Queue->latIndex * 0.95)],
 		Queue->orderSamples[(UINT32)(Queue->latIndex * 0.99)],
 		Queue->orderSamples[(UINT32)(Queue->latIndex * 0.999)],
 		Queue->orderSamples[(UINT32)(Queue->latIndex * 0.9999)],
 		Queue->orderSamples[(UINT32)(Queue->latIndex * 0.99999)],
 		Queue->orderSamples[(UINT32)(Queue->latIndex * 0.999999)],
+		Queue->orderSamples[(UINT32)(Queue->latIndex - 1)],
 		Queue->reqBatch
 	);
 	printf(
-		"position at: %-3s[%d]: min=%d P50=%d P90=%d P99=%d P99.9=%d P99.99=%d P99.999=%d P99.9999=%d packets lost\n",
+		"position at: %-3s[%d]: min=%d P50=%d P90=%d P95=%d P99=%d P99.9=%d P99.99=%d P99.999=%d P99.9999=%d max=%d packets lost\n",
 		modestr, Queue->queueId,
 		0,
 		(UINT32)(Queue->latIndex * 0.5),
 		(UINT32)(Queue->latIndex * 0.9),
+		(UINT32)(Queue->latIndex * 0.95),
 		(UINT32)(Queue->latIndex * 0.99),
 		(UINT32)(Queue->latIndex * 0.999),
 		(UINT32)(Queue->latIndex * 0.9999),
 		(UINT32)(Queue->latIndex * 0.99999),
-		(UINT32)(Queue->latIndex * 0.999999)
+		(UINT32)(Queue->latIndex * 0.999999),
+		(UINT32)(Queue->latIndex - 1)
 	);
 
-	printf("Collected %d samples\n", Queue->latIndex);
+	printf("Collected %lu samples\n", Queue->latIndex);
 	//-huajianwang:eelat
 }
 
