@@ -41,11 +41,11 @@ extern BOOLEAN largePages;
 extern UINT16 udpDestPort;
 
 /*
-INT64
-QpcToUs64(
-    INT64 Qpc,
-    INT64 QpcFrequency
-);
-*/
+   INT64
+   QpcToUs64(
+   INT64 Qpc,
+   INT64 QpcFrequency
+   );
+   */
 void PrintPacketMeta(_In_ void* buffer);
 bool parseAddress(const char* input, char* ip_out, int& port_out);

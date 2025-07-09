@@ -10,7 +10,7 @@
 #include "work_load.h"
 
 #pragma warning(disable:4200) // nonstandard extension used: zero-sized array in struct/union
-    
+
 ULONG benchDuration = DEFAULT_DURATION;
 BOOLEAN processDone = FALSE;
 CHAR* modestr;
@@ -106,10 +106,10 @@ CHAR* HELP =
 "   xdpsrv.exe lat -i 6 -t -q -id 0 -ring_size 8\n"
 ;
 
-VOID
-EnableLargePages(
     VOID
-)
+EnableLargePages(
+        VOID
+        )
 {
     HANDLE Token = NULL;
     TOKEN_PRIVILEGES TokenPrivileges;
@@ -141,11 +141,11 @@ Failure:
 
 
 _Success_(return)
-BOOLEAN
+    BOOLEAN
 ParseUInt64A(
-    _In_z_ const CHAR * Arg,
-    _Out_ UINT64 * Result
-)
+        _In_z_ const CHAR * Arg,
+        _Out_ UINT64 * Result
+        )
 {
     // detect hex
     const CHAR* Fmt = (Arg[0] == '0' && Arg[1] == 'x') ? "%llx%n" : "%llu%n";
@@ -160,11 +160,11 @@ ParseUInt64A(
 }
 
 _Success_(return)
-BOOLEAN
+    BOOLEAN
 ParseUInt32A(
-    _In_z_ const CHAR * Arg,
-    _Out_ UINT32 * Result
-)
+        _In_z_ const CHAR * Arg,
+        _Out_ UINT32 * Result
+        )
 {
     UINT64 Tmp;
 
@@ -181,10 +181,10 @@ ParseUInt32A(
     return TRUE;
 }
 
-VOID
+    VOID
 DoRxMode(
-    NetThread * Thread
-)
+        NetThread * Thread
+        )
 {
     for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
         RssQueue* queue = &Thread->queues[qIndex];
@@ -215,10 +215,10 @@ DoRxMode(
     }
 }
 
-VOID
+    VOID
 DoTxMode(
-    NetThread * Thread
-)
+        NetThread * Thread
+        )
 {
     for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
         RssQueue* queue = &Thread->queues[qIndex];
@@ -250,10 +250,10 @@ DoTxMode(
     }
 }
 
-VOID
+    VOID
 DoFwdMode(
-    NetThread * Thread
-)
+        NetThread * Thread
+        )
 {
     for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
         RssQueue* queue = &Thread->queues[qIndex];
@@ -286,10 +286,10 @@ DoFwdMode(
     }
 }
 
-VOID
+    VOID
 DoLatMode(
-    NetThread * Thread
-)
+        NetThread * Thread
+        )
 {
     for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
         RssQueue* queue = &Thread->queues[qIndex];
@@ -322,39 +322,39 @@ DoLatMode(
     }
 }
 
-VOID
+    VOID
 PrintUsage(
-    INT Line
-)
+        INT Line
+        )
 {
     printf_error("Line:%d\n", Line);
     ABORT(HELP);
 }
 
-VOID
+    VOID
 ParseQueueArgs(
-    RssQueue * Queue,
-    INT argc,
-    CHAR * *argv
-)
+        RssQueue * Queue,
+        INT argc,
+        CHAR * *argv
+        )
 {
     UINT64 umemsize = DEFAULT_UMEM_SIZE;
     ULONG umemchunksize = DEFAULT_UMEM_CHUNK_SIZE;
     ULONG umemheadroom = DEFAULT_UMEM_HEADROOM;
     /*
-    Queue->queueId = -1;
-    Queue->xdpMode = XdpModeSystem;
-    Queue->umemsize = DEFAULT_UMEM_SIZE;
-    Queue->umemchunksize = DEFAULT_UMEM_CHUNK_SIZE;
-    Queue->umemheadroom = DEFAULT_UMEM_HEADROOM;
-    Queue->iobatchsize = DEFAULT_IO_BATCH;
-    Queue->pollMode = XSK_POLL_MODE_DEFAULT;
-    Queue->flags.optimizePoking = TRUE;
-    Queue->txiosize = DEFAULT_TX_IO_SIZE;
-    Queue->latSamplesCount = DEFAULT_LAT_COUNT;
+       Queue->queueId = -1;
+       Queue->xdpMode = XdpModeSystem;
+       Queue->umemsize = DEFAULT_UMEM_SIZE;
+       Queue->umemchunksize = DEFAULT_UMEM_CHUNK_SIZE;
+       Queue->umemheadroom = DEFAULT_UMEM_HEADROOM;
+       Queue->iobatchsize = DEFAULT_IO_BATCH;
+       Queue->pollMode = XSK_POLL_MODE_DEFAULT;
+       Queue->flags.optimizePoking = TRUE;
+       Queue->txiosize = DEFAULT_TX_IO_SIZE;
+       Queue->latSamplesCount = DEFAULT_LAT_COUNT;
 
-    Queue->payloadsize = DEFAULT_PAYLOAD_SIZE;
-    */
+       Queue->payloadsize = DEFAULT_PAYLOAD_SIZE;
+       */
     INT dstipidx = -1;
 
     for (INT i = 0; i < argc; i++) {
@@ -404,502 +404,502 @@ ParseQueueArgs(
                 Usage();
             }
         }
-        else if (!strcmp(argv[i], "-b")) {
-            if (++i >= argc) {
-                Usage();
+            else if (!strcmp(argv[i], "-b")) {
+                if (++i >= argc) {
+                    Usage();
+                }
+                Queue->iobatchsize = atoi(argv[i]);
             }
-            Queue->iobatchsize = atoi(argv[i]);
-        }
-        else if (!strcmp(argv[i], "-h")) {
-            if (++i >= argc) {
-                Usage();
+            else if (!strcmp(argv[i], "-h")) {
+                if (++i >= argc) {
+                    Usage();
+                }
+                //Queue->umemheadroom = atoi(argv[i]);
+                umemheadroom = atoi(argv[i]);
             }
-            //Queue->umemheadroom = atoi(argv[i]);
-			umemheadroom = atoi(argv[i]);
-        }
-        else if (!strcmp(argv[i], "-s")) {
-            Queue->flags.periodicStats = TRUE;
-        }
-        else if (!_stricmp(argv[i], "-ignore_needpoke")) {
-            Queue->flags.optimizePoking = FALSE;
-        }
-        else if (!_stricmp(argv[i], "-poll")) {
-            if (++i >= argc) {
-                Usage();
+            else if (!strcmp(argv[i], "-s")) {
+                Queue->flags.periodicStats = TRUE;
             }
-            if (!_stricmp(argv[i], "system")) {
-                Queue->pollMode = XSK_POLL_MODE_DEFAULT;
+            else if (!_stricmp(argv[i], "-ignore_needpoke")) {
+                Queue->flags.optimizePoking = FALSE;
             }
-            else if (!_stricmp(argv[i], "busy")) {
-                Queue->pollMode = XSK_POLL_MODE_BUSY;
-            }
-            else if (!_stricmp(argv[i], "socket")) {
-                Queue->pollMode = XSK_POLL_MODE_SOCKET;
-            }
-            else {
-                Usage();
-            }
-        }
-        else if (!_stricmp(argv[i], "-xdp_mode")) {
-            if (++i >= argc) {
-                Usage();
-            }
-            if (!_stricmp(argv[i], "system")) {
-                Queue->xdpMode = XdpModeSystem;
-            }
-            else if (!_stricmp(argv[i], "generic")) {
-                Queue->xdpMode = XdpModeGeneric;
-            }
-            else if (!_stricmp(argv[i], "native")) {
-                Queue->xdpMode = XdpModeNative;
-            }
-            else {
-                Usage();
-            }
-        }
-        else if (!strcmp(argv[i], "-rx_inject")) {
-            Queue->flags.rxInject = TRUE;
-        }
-        else if (!strcmp(argv[i], "-tx_inspect")) {
-            Queue->flags.txInspect = TRUE;
-        }
-        else if (!strcmp(argv[i], "-dst")) {
-            if (++i >= argc) {
-                Usage();
-            }
-			char ip_out[64] = { 0 };
-            int port_out = 0;
-            if (parseAddress(argv[i], ip_out, port_out)) {
-				dstipidx = i;
-				g_LocalAdapter->SetTarget(ip_out, DEFAULT_DST_MAC_ADDR, (UINT16)port_out);
-            }
-            else {
-				printf("Please input the valid dst machine!\n");
-                Usage();
-            }
-        }
-        else if (!strcmp(argv[i], "-dstmac")) {
-            if (++i >= argc) {
-                Usage();
-            }
-            if (dstipidx > 0) {
-				char ip_out[64] = { 0 };
-				int port_out = 0;
-				if (parseAddress(argv[dstipidx], ip_out, port_out)) {
-                    g_LocalAdapter->SetTarget(ip_out, argv[i], (UINT16)port_out);
+            else if (!_stricmp(argv[i], "-poll")) {
+                if (++i >= argc) {
+                    Usage();
+                }
+                if (!_stricmp(argv[i], "system")) {
+                    Queue->pollMode = XSK_POLL_MODE_DEFAULT;
+                }
+                else if (!_stricmp(argv[i], "busy")) {
+                    Queue->pollMode = XSK_POLL_MODE_BUSY;
+                }
+                else if (!_stricmp(argv[i], "socket")) {
+                    Queue->pollMode = XSK_POLL_MODE_SOCKET;
                 }
                 else {
-					printf("Please input the valid dst machine!\n");
-					Usage();
+                    Usage();
                 }
+            }
+            else if (!_stricmp(argv[i], "-xdp_mode")) {
+                if (++i >= argc) {
+                    Usage();
+                }
+                if (!_stricmp(argv[i], "system")) {
+                    Queue->xdpMode = XdpModeSystem;
+                }
+                else if (!_stricmp(argv[i], "generic")) {
+                    Queue->xdpMode = XdpModeGeneric;
+                }
+                else if (!_stricmp(argv[i], "native")) {
+                    Queue->xdpMode = XdpModeNative;
+                }
+                else {
+                    Usage();
+                }
+            }
+            else if (!strcmp(argv[i], "-rx_inject")) {
+                Queue->flags.rxInject = TRUE;
+            }
+            else if (!strcmp(argv[i], "-tx_inspect")) {
+                Queue->flags.txInspect = TRUE;
+            }
+            else if (!strcmp(argv[i], "-dst")) {
+                if (++i >= argc) {
+                    Usage();
+                }
+                char ip_out[64] = { 0 };
+                int port_out = 0;
+                if (parseAddress(argv[i], ip_out, port_out)) {
+                    dstipidx = i;
+                    g_LocalAdapter->SetTarget(ip_out, DEFAULT_DST_MAC_ADDR, (UINT16)port_out);
+                }
+                else {
+                    printf("Please input the valid dst machine!\n");
+                    Usage();
+                }
+            }
+            else if (!strcmp(argv[i], "-dstmac")) {
+                if (++i >= argc) {
+                    Usage();
+                }
+                if (dstipidx > 0) {
+                    char ip_out[64] = { 0 };
+                    int port_out = 0;
+                    if (parseAddress(argv[dstipidx], ip_out, port_out)) {
+                        g_LocalAdapter->SetTarget(ip_out, argv[i], (UINT16)port_out);
+                    }
+                    else {
+                        printf("Please input the valid dst machine!\n");
+                        Usage();
+                    }
+                }
+                else {
+                    Usage();
+                }
+            }
+            /*
+               else if (!strcmp(argv[i], "-tx_pattern")) {
+               if (++i >= argc) {
+               Usage();
+               }
+               Queue->txPatternLength = (UINT32)strlen(argv[i]);
+               ASSERT_FRE(Queue->txPatternLength > 0 && Queue->txPatternLength % 2 == 0);
+               Queue->txPatternLength /= 2;
+               Queue->txPattern = (UCHAR*)malloc(Queue->txPatternLength);
+               ASSERT_FRE(Queue->txPattern != NULL);
+               HexStringToByte(Queue->txPattern, Queue->txPatternLength, argv[i]);
+               }
+               */
+               else if (!strcmp(argv[i], "-tx_payload")) {
+                   if (++i >= argc) {
+                       Usage();
+                   }
+                   if ((strlen(argv[i]) % 2) != 0) {
+                       printf_error("Invalid tx_payload argument: %s\n", argv[i]);
+                       ABORT("The tx_payload must be a hexadecimal string with an even number of characters.\n");
+                   }
+                   Queue->payloadsize = (UINT32)strlen(argv[i])>>1;
+                   Queue->txPayload = (UCHAR*)malloc(Queue->payloadsize);
+                   ASSERT_FRE(Queue->txPayload != NULL);
+                   //ASSERT_FRE(hex_string_to_bytes(argv[i], Queue->txPayload, Queue->payloadsize)>0);
+                   HexStringToByte(Queue->txPayload, Queue->payloadsize, argv[i]);
+               }
+               else if (!strcmp(argv[i], "-lat_count")) {
+                   if (++i >= argc) {
+                       Usage();
+                   }
+                   Queue->latSamplesCount = atoi(argv[i]);
+               }
+               else {
+                   Usage();
+               }
+        }
+
+        g_LocalAdapter->debug_output();
+
+        if (Queue->queueId == -1) {
+            Usage();
+        }
+
+        if (Queue->ringSize == 0) {
+            Queue->SetMemory(umemsize, umemchunksize);
+        }
+
+
+        if (workMode == ModeLat) {
+            ASSERT_FRE(
+                    Queue->umemchunkSize - Queue->umemHeadroom >= Queue->txPatternLength + sizeof(UINT64));
+
+            Queue->latSamples = (INT64 *)malloc(Queue->latSamplesCount * sizeof(*Queue->latSamples));
+            ASSERT_FRE(Queue->latSamples != NULL);
+            ZeroMemory(Queue->latSamples, Queue->latSamplesCount * sizeof(*Queue->latSamples));
+        }
+    }
+
+    VOID
+        ParseThreadArgs(
+                NetThread * Thread,
+                INT argc,
+                CHAR * *argv
+                )
+        {
+            BOOLEAN groupSet = FALSE;
+            BOOLEAN cpuAffinitySet = FALSE;
+
+            Thread->wait = FALSE;
+            Thread->nodeAffinity = DEFAULT_NODE_AFFINITY;
+            Thread->idealCpu = DEFAULT_IDEAL_CPU;
+            Thread->cpuAffinity = DEFAULT_CPU_AFFINITY;
+            Thread->group = DEFAULT_GROUP;
+            Thread->yieldCount = DEFAULT_YIELD_COUNT;
+
+            for (INT i = 0; i < argc; i++) {
+                if (!strcmp(argv[i], "-q")) {
+                    Thread->queueCount++;
+                }
+                else if (!_stricmp(argv[i], "-na")) {
+                    if (++i >= argc) {
+                        Usage();
+                    }
+                    Thread->nodeAffinity = atoi(argv[i]);
+                }
+                else if (!_stricmp(argv[i], "-group")) {
+                    if (++i >= argc) {
+                        Usage();
+                    }
+                    Thread->group = atoi(argv[i]);
+                    groupSet = TRUE;
+                }
+                else if (!_stricmp(argv[i], "-ci")) {
+                    if (++i >= argc) {
+                        Usage();
+                    }
+                    Thread->idealCpu = atoi(argv[i]);
+                }
+                else if (!_stricmp(argv[i], "-ca")) {
+                    if (++i >= argc) {
+                        Usage();
+                    }
+                    Thread->cpuAffinity = (DWORD_PTR)_strtoui64(argv[i], NULL, 0);
+                    cpuAffinitySet = TRUE;
+                }
+                else if (!strcmp(argv[i], "-w")) {
+                    Thread->wait = TRUE;
+                }
+                else if (!_stricmp(argv[i], "-yield")) {
+                    if (++i >= argc) {
+                        Usage();
+                    }
+                    Thread->yieldCount = atoi(argv[i]);
+                }
+                else if (Thread->queueCount == 0) {
+                    Usage();
+                }
+            }
+
+            if (Thread->queueCount == 0) {
+                Usage();
+            }
+
+            if (Thread->wait && Thread->queueCount > 1) {
+                printf_error("Waiting with multiple sockets per thread is not supported\n");
+                Usage();
+            }
+
+            if (groupSet != cpuAffinitySet) {
+                Usage();
+            }
+
+            //Thread->queues = (RssQueue*)calloc(Thread->queueCount, sizeof(*Thread->queues));
+            Thread->queues = (RssQueue*)new RssQueue[Thread->queueCount];// , sizeof(*Thread->queues));
+            ASSERT_FRE(Thread->queues != NULL);
+
+            INT qStart = -1;
+            INT qIndex = 0;
+            for (INT i = 0; i < argc; i++) {
+                if (!strcmp(argv[i], "-q")) {
+                    if (qStart != -1) {
+                        ParseQueueArgs(&Thread->queues[qIndex++], i - qStart, &argv[qStart]);
+                    }
+                    qStart = i + 1;
+                }
+            }
+            ParseQueueArgs(&Thread->queues[qIndex++], argc - qStart, &argv[qStart]);
+        }
+
+    VOID
+        ParseArgs(
+                NetThread * *ThreadsPtr,
+                UINT32 * ThreadCountPtr,
+                INT argc,
+                CHAR * *argv
+                )
+        {
+            INT i = 1;
+            UINT32 threadCount = 0;
+            NetThread* threads = NULL;
+
+            if (argc < 4) {
+                Usage();
+            }
+
+            if (!_stricmp(argv[i], "rx")) {
+                workMode = ModeRx;
+            }
+            else if (!_stricmp(argv[i], "tx")) {
+                workMode = ModeTx;
+            }
+            else if (!_stricmp(argv[i], "fwd")) {
+                workMode = ModeFwd;
+            }
+            else if (!_stricmp(argv[i], "lat")) {
+                workMode = ModeLat;
             }
             else {
                 Usage();
             }
-        }
-        /*
-        else if (!strcmp(argv[i], "-tx_pattern")) {
-            if (++i >= argc) {
+            modestr = argv[i];
+            ++i;
+
+            if (!strcmp(argv[i], "-i")) {
+                if (++i >= argc) {
+                    Usage();
+                }
+                if (!g_LocalAdapter->InitLocalByIdx(atoi(argv[i++]), 4321)) {
+                    printf_error("Failed to initialize local adapter by ifindex %d\n", g_LocalAdapter->GetIfindex());
+                    ABORT("Check if the interface is up and XDP is enabled on it.\n");
+                    //Usage();
+                }
+            }
+            else if (!strcmp(argv[i], "-srcip")) {
+                if (++i >= argc) {
+                    Usage();
+                }
+                if (!g_LocalAdapter->InitLocalByIP(argv[i++], 4321)) {
+                    printf_error("Failed to initialize local adapter by srcip %s\n", argv[i]);
+                    ABORT("Check if the interface is up and XDP is enabled on it.\n");
+                }
+            }
+
+            while (i < argc) {
+                if (!strcmp(argv[i], "-t")) {
+                    threadCount++;
+                }
+                else if (!strcmp(argv[i], "-p")) {
+                    if (++i >= argc) {
+                        Usage();
+                    }
+                    udpDestPort = (UINT16)atoi(argv[i]);
+                }
+                else if (!strcmp(argv[i], "-d")) {
+                    if (++i >= argc) {
+                        Usage();
+                    }
+                    benchDuration = atoi(argv[i]);
+                }
+                else if (!strcmp(argv[i], "-v")) {
+                    logVerbose = TRUE;
+                }
+                else if (!strcmp(argv[i], "-o")) {
+                    outputStdout = TRUE;
+                }
+                else if (!_stricmp(argv[i], "-lp")) {
+                    largePages = TRUE;
+                    EnableLargePages();
+                }
+                else if (threadCount == 0) {
+                    Usage();
+                }
+
+                ++i;
+            }
+
+            if (g_LocalAdapter->GetIfindex() == -1) {
                 Usage();
             }
-            Queue->txPatternLength = (UINT32)strlen(argv[i]);
-            ASSERT_FRE(Queue->txPatternLength > 0 && Queue->txPatternLength % 2 == 0);
-            Queue->txPatternLength /= 2;
-            Queue->txPattern = (UCHAR*)malloc(Queue->txPatternLength);
-            ASSERT_FRE(Queue->txPattern != NULL);
-            HexStringToByte(Queue->txPattern, Queue->txPatternLength, argv[i]);
-        }
-        */
-        else if (!strcmp(argv[i], "-tx_payload")) {
-            if (++i >= argc) {
+
+            if (threadCount == 0) {
                 Usage();
             }
-            if ((strlen(argv[i]) % 2) != 0) {
-                printf_error("Invalid tx_payload argument: %s\n", argv[i]);
-				ABORT("The tx_payload must be a hexadecimal string with an even number of characters.\n");
+
+            threads = (NetThread*)calloc(threadCount, sizeof(*threads));
+            ASSERT_FRE(threads != NULL);
+
+            INT tStart = -1;
+            INT tIndex = 0;
+            for (i = 0; i < argc; i++) {
+                if (!strcmp(argv[i], "-t")) {
+                    if (tStart != -1) {
+                        ParseThreadArgs(&threads[tIndex++], i - tStart, &argv[tStart]);
+                    }
+                    tStart = i + 1;
+                }
             }
-            Queue->payloadsize = (UINT32)strlen(argv[i])>>1;
-			Queue->txPayload = (UCHAR*)malloc(Queue->payloadsize);
-            ASSERT_FRE(Queue->txPayload != NULL);
-			//ASSERT_FRE(hex_string_to_bytes(argv[i], Queue->txPayload, Queue->payloadsize)>0);
-            HexStringToByte(Queue->txPayload, Queue->payloadsize, argv[i]);
+            ParseThreadArgs(&threads[tIndex++], argc - tStart, &argv[tStart]);
+
+            *ThreadsPtr = threads;
+            *ThreadCountPtr = threadCount;
         }
-        else if (!strcmp(argv[i], "-lat_count")) {
-            if (++i >= argc) {
-                Usage();
+
+    HRESULT
+        SetThreadAffinities(
+                NetThread * Thread
+                )
+        {
+            if (Thread->nodeAffinity != DEFAULT_NODE_AFFINITY) {
+                GROUP_AFFINITY group;
+
+                printf_verbose("setting node affinity %d\n", Thread->nodeAffinity);
+                if (!GetNumaNodeProcessorMaskEx((USHORT)Thread->nodeAffinity, &group)) {
+                    assert(FALSE);
+                    return HRESULT_FROM_WIN32(GetLastError());
+                }
+                if (!SetThreadGroupAffinity(GetCurrentThread(), &group, NULL)) {
+                    assert(FALSE);
+                    return HRESULT_FROM_WIN32(GetLastError());
+                }
             }
-            Queue->latSamplesCount = atoi(argv[i]);
-        }
-        else {
-            Usage();
-        }
-    }
 
-    g_LocalAdapter->debug_output();
+            if (Thread->group != DEFAULT_GROUP) {
+                GROUP_AFFINITY group = { 0 };
 
-    if (Queue->queueId == -1) {
-        Usage();
-    }
-
-    if (Queue->ringSize == 0) {
-		Queue->SetMemory(umemsize, umemchunksize);
-    }
-
-
-    if (workMode == ModeLat) {
-        ASSERT_FRE(
-            Queue->umemchunkSize - Queue->umemHeadroom >= Queue->txPatternLength + sizeof(UINT64));
-
-        Queue->latSamples = (INT64 *)malloc(Queue->latSamplesCount * sizeof(*Queue->latSamples));
-        ASSERT_FRE(Queue->latSamples != NULL);
-        ZeroMemory(Queue->latSamples, Queue->latSamplesCount * sizeof(*Queue->latSamples));
-    }
-}
-
-VOID
-ParseThreadArgs(
-    NetThread * Thread,
-    INT argc,
-    CHAR * *argv
-)
-{
-    BOOLEAN groupSet = FALSE;
-    BOOLEAN cpuAffinitySet = FALSE;
-
-    Thread->wait = FALSE;
-    Thread->nodeAffinity = DEFAULT_NODE_AFFINITY;
-    Thread->idealCpu = DEFAULT_IDEAL_CPU;
-    Thread->cpuAffinity = DEFAULT_CPU_AFFINITY;
-    Thread->group = DEFAULT_GROUP;
-    Thread->yieldCount = DEFAULT_YIELD_COUNT;
-
-    for (INT i = 0; i < argc; i++) {
-        if (!strcmp(argv[i], "-q")) {
-            Thread->queueCount++;
-        }
-        else if (!_stricmp(argv[i], "-na")) {
-            if (++i >= argc) {
-                Usage();
+                printf_verbose("setting CPU affinity mask 0x%llu\n", Thread->cpuAffinity);
+                printf_verbose("setting group affinity %d\n", Thread->group);
+                group.Mask = Thread->cpuAffinity;
+                group.Group = (WORD)Thread->group;
+                if (!SetThreadGroupAffinity(GetCurrentThread(), &group, NULL)) {
+                    assert(FALSE);
+                    return HRESULT_FROM_WIN32(GetLastError());
+                }
             }
-            Thread->nodeAffinity = atoi(argv[i]);
-        }
-        else if (!_stricmp(argv[i], "-group")) {
-            if (++i >= argc) {
-                Usage();
+
+            if (Thread->idealCpu != DEFAULT_IDEAL_CPU) {
+                DWORD oldCpu;
+                printf_verbose("setting ideal CPU %d\n", Thread->idealCpu);
+                oldCpu = SetThreadIdealProcessor(GetCurrentThread(), Thread->idealCpu);
+                assert(oldCpu != -1);
+                if (oldCpu == -1) {
+                    return HRESULT_FROM_WIN32(GetLastError());
+                }
             }
-            Thread->group = atoi(argv[i]);
-            groupSet = TRUE;
+
+            return S_OK;
         }
-        else if (!_stricmp(argv[i], "-ci")) {
-            if (++i >= argc) {
-                Usage();
+
+    DWORD
+        WINAPI
+        XdpPollingThread(
+                LPVOID lpThreadParameter
+                )
+        {
+            NetThread* thread = (NetThread*)lpThreadParameter;
+            HRESULT res;
+
+            // Affinitize ASAP: memory allocations implicitly target the current
+            // NUMA node, including kernel XDP allocations.
+            res = SetThreadAffinities(thread);
+            ASSERT_FRE(res == S_OK);
+
+            if (workMode == ModeRx) {
+                DoRxMode(thread);
             }
-            Thread->idealCpu = atoi(argv[i]);
-        }
-        else if (!_stricmp(argv[i], "-ca")) {
-            if (++i >= argc) {
-                Usage();
+            else if (workMode == ModeTx) {
+                DoTxMode(thread);
             }
-            Thread->cpuAffinity = (DWORD_PTR)_strtoui64(argv[i], NULL, 0);
-            cpuAffinitySet = TRUE;
-        }
-        else if (!strcmp(argv[i], "-w")) {
-            Thread->wait = TRUE;
-        }
-        else if (!_stricmp(argv[i], "-yield")) {
-            if (++i >= argc) {
-                Usage();
+            else if (workMode == ModeFwd) {
+                DoFwdMode(thread);
             }
-            Thread->yieldCount = atoi(argv[i]);
-        }
-        else if (Thread->queueCount == 0) {
-            Usage();
-        }
-    }
-
-    if (Thread->queueCount == 0) {
-        Usage();
-    }
-
-    if (Thread->wait && Thread->queueCount > 1) {
-        printf_error("Waiting with multiple sockets per thread is not supported\n");
-        Usage();
-    }
-
-    if (groupSet != cpuAffinitySet) {
-        Usage();
-    }
-
-    //Thread->queues = (RssQueue*)calloc(Thread->queueCount, sizeof(*Thread->queues));
-    Thread->queues = (RssQueue*)new RssQueue[Thread->queueCount];// , sizeof(*Thread->queues));
-    ASSERT_FRE(Thread->queues != NULL);
-
-    INT qStart = -1;
-    INT qIndex = 0;
-    for (INT i = 0; i < argc; i++) {
-        if (!strcmp(argv[i], "-q")) {
-            if (qStart != -1) {
-                ParseQueueArgs(&Thread->queues[qIndex++], i - qStart, &argv[qStart]);
+            else if (workMode == ModeLat) {
+                DoLatMode(thread);
             }
-            qStart = i + 1;
+
+            return 0;
         }
-    }
-    ParseQueueArgs(&Thread->queues[qIndex++], argc - qStart, &argv[qStart]);
-}
 
-VOID
-ParseArgs(
-    NetThread * *ThreadsPtr,
-    UINT32 * ThreadCountPtr,
-    INT argc,
-    CHAR * *argv
-)
-{
-    INT i = 1;
-    UINT32 threadCount = 0;
-    NetThread* threads = NULL;
+    BOOL
+        WINAPI
+        ConsoleCtrlHandler(
+                DWORD CtrlType
+                )
+        {
+            UNREFERENCED_PARAMETER(CtrlType);
 
-    if (argc < 4) {
-        Usage();
-    }
+            // Force graceful exit.
+            benchDuration = 0;
+            SetEvent(periodicStatsEvent);
 
-    if (!_stricmp(argv[i], "rx")) {
-        workMode = ModeRx;
-    }
-    else if (!_stricmp(argv[i], "tx")) {
-        workMode = ModeTx;
-    }
-    else if (!_stricmp(argv[i], "fwd")) {
-        workMode = ModeFwd;
-    }
-    else if (!_stricmp(argv[i], "lat")) {
-        workMode = ModeLat;
-    }
-    else {
-        Usage();
-    }
-    modestr = argv[i];
-    ++i;
-
-    if (!strcmp(argv[i], "-i")) {
-		if (++i >= argc) {
-			Usage();
-		}
-		if (!g_LocalAdapter->InitLocalByIdx(atoi(argv[i++]), 4321)) {
-			printf_error("Failed to initialize local adapter by ifindex %d\n", g_LocalAdapter->GetIfindex());
-			ABORT("Check if the interface is up and XDP is enabled on it.\n");
-			//Usage();
-		}
-    }
-    else if (!strcmp(argv[i], "-srcip")) {
-		if (++i >= argc) {
-			Usage();
-		}
-        if (!g_LocalAdapter->InitLocalByIP(argv[i++], 4321)) {
-           printf_error("Failed to initialize local adapter by srcip %s\n", argv[i]);
-           ABORT("Check if the interface is up and XDP is enabled on it.\n");
+            return TRUE;
         }
-    }
 
-    while (i < argc) {
-        if (!strcmp(argv[i], "-t")) {
-            threadCount++;
-        }
-        else if (!strcmp(argv[i], "-p")) {
-            if (++i >= argc) {
-                Usage();
+    INT
+        __cdecl
+        main(
+                INT argc,
+                CHAR * *argv
+            )
+        {
+            NetThread* threads;
+            UINT32 threadCount;
+            g_LocalAdapter = new NicAdapter();
+
+            ParseArgs(&threads, &threadCount, argc, argv);
+
+            periodicStatsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+            ASSERT_FRE(periodicStatsEvent != NULL);
+
+            ASSERT_FRE(SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE));
+
+            for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
+                threads[tIndex].readyEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
+                ASSERT_FRE(threads[tIndex].readyEvent != NULL);
+                threads[tIndex].threadHandle =
+                    CreateThread(NULL, 0, XdpPollingThread, &threads[tIndex], 0, NULL);
+                ASSERT_FRE(threads[tIndex].threadHandle != NULL);
+                WaitForSingleObject(threads[tIndex].readyEvent, INFINITE);
             }
-            udpDestPort = (UINT16)atoi(argv[i]);
-        }
-        else if (!strcmp(argv[i], "-d")) {
-            if (++i >= argc) {
-                Usage();
+
+            while (benchDuration-- > 0) {
+                WaitForSingleObject(periodicStatsEvent, 1000);
+                for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
+                    NetThread* Thread = &threads[tIndex];
+                    for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
+                        //ProcessPeriodicStats(&Thread->queues[qIndex]);
+                        Thread->queues[qIndex].ProcessPeriodicStats();
+                    }
+                }
             }
-            benchDuration = atoi(argv[i]);
-        }
-        else if (!strcmp(argv[i], "-v")) {
-            logVerbose = TRUE;
-        }
-        else if (!strcmp(argv[i], "-o")) {
-            outputStdout = TRUE;
-        }
-        else if (!_stricmp(argv[i], "-lp")) {
-            largePages = TRUE;
-            EnableLargePages();
-        }
-        else if (threadCount == 0) {
-            Usage();
-        }
 
-        ++i;
-    }
+            WriteBooleanNoFence(&processDone, TRUE);
 
-    if (g_LocalAdapter->GetIfindex() == -1) {
-        Usage();
-    }
-
-    if (threadCount == 0) {
-        Usage();
-    }
-
-    threads = (NetThread*)calloc(threadCount, sizeof(*threads));
-    ASSERT_FRE(threads != NULL);
-
-    INT tStart = -1;
-    INT tIndex = 0;
-    for (i = 0; i < argc; i++) {
-        if (!strcmp(argv[i], "-t")) {
-            if (tStart != -1) {
-                ParseThreadArgs(&threads[tIndex++], i - tStart, &argv[tStart]);
+            for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
+                NetThread* Thread = &threads[tIndex];
+                WaitForSingleObject(Thread->threadHandle, INFINITE);
+                for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
+                    //PrintFinalStats(&Thread->queues[qIndex]);
+                    Thread->queues[qIndex].PrintFinalStats();
+                }
             }
-            tStart = i + 1;
+            delete g_LocalAdapter;
+
+            return 0;
         }
-    }
-    ParseThreadArgs(&threads[tIndex++], argc - tStart, &argv[tStart]);
-
-    *ThreadsPtr = threads;
-    *ThreadCountPtr = threadCount;
-}
-
-HRESULT
-SetThreadAffinities(
-    NetThread * Thread
-)
-{
-    if (Thread->nodeAffinity != DEFAULT_NODE_AFFINITY) {
-        GROUP_AFFINITY group;
-
-        printf_verbose("setting node affinity %d\n", Thread->nodeAffinity);
-        if (!GetNumaNodeProcessorMaskEx((USHORT)Thread->nodeAffinity, &group)) {
-            assert(FALSE);
-            return HRESULT_FROM_WIN32(GetLastError());
-        }
-        if (!SetThreadGroupAffinity(GetCurrentThread(), &group, NULL)) {
-            assert(FALSE);
-            return HRESULT_FROM_WIN32(GetLastError());
-        }
-    }
-
-    if (Thread->group != DEFAULT_GROUP) {
-        GROUP_AFFINITY group = { 0 };
-
-        printf_verbose("setting CPU affinity mask 0x%llu\n", Thread->cpuAffinity);
-        printf_verbose("setting group affinity %d\n", Thread->group);
-        group.Mask = Thread->cpuAffinity;
-        group.Group = (WORD)Thread->group;
-        if (!SetThreadGroupAffinity(GetCurrentThread(), &group, NULL)) {
-            assert(FALSE);
-            return HRESULT_FROM_WIN32(GetLastError());
-        }
-    }
-
-    if (Thread->idealCpu != DEFAULT_IDEAL_CPU) {
-        DWORD oldCpu;
-        printf_verbose("setting ideal CPU %d\n", Thread->idealCpu);
-        oldCpu = SetThreadIdealProcessor(GetCurrentThread(), Thread->idealCpu);
-        assert(oldCpu != -1);
-        if (oldCpu == -1) {
-            return HRESULT_FROM_WIN32(GetLastError());
-        }
-    }
-
-    return S_OK;
-}
-
-DWORD
-WINAPI
-XdpPollingThread(
-    LPVOID lpThreadParameter
-)
-{
-    NetThread* thread = (NetThread*)lpThreadParameter;
-    HRESULT res;
-
-    // Affinitize ASAP: memory allocations implicitly target the current
-    // NUMA node, including kernel XDP allocations.
-    res = SetThreadAffinities(thread);
-    ASSERT_FRE(res == S_OK);
-
-    if (workMode == ModeRx) {
-        DoRxMode(thread);
-    }
-    else if (workMode == ModeTx) {
-        DoTxMode(thread);
-    }
-    else if (workMode == ModeFwd) {
-        DoFwdMode(thread);
-    }
-    else if (workMode == ModeLat) {
-        DoLatMode(thread);
-    }
-
-    return 0;
-}
-
-BOOL
-WINAPI
-ConsoleCtrlHandler(
-    DWORD CtrlType
-)
-{
-    UNREFERENCED_PARAMETER(CtrlType);
-
-    // Force graceful exit.
-    benchDuration = 0;
-    SetEvent(periodicStatsEvent);
-
-    return TRUE;
-}
-
-INT
-__cdecl
-main(
-    INT argc,
-    CHAR * *argv
-)
-{
-    NetThread* threads;
-    UINT32 threadCount;
-	g_LocalAdapter = new NicAdapter();
-
-    ParseArgs(&threads, &threadCount, argc, argv);
-
-    periodicStatsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-    ASSERT_FRE(periodicStatsEvent != NULL);
-
-    ASSERT_FRE(SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE));
-
-    for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
-        threads[tIndex].readyEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
-        ASSERT_FRE(threads[tIndex].readyEvent != NULL);
-        threads[tIndex].threadHandle =
-            CreateThread(NULL, 0, XdpPollingThread, &threads[tIndex], 0, NULL);
-        ASSERT_FRE(threads[tIndex].threadHandle != NULL);
-        WaitForSingleObject(threads[tIndex].readyEvent, INFINITE);
-    }
-
-    while (benchDuration-- > 0) {
-        WaitForSingleObject(periodicStatsEvent, 1000);
-        for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
-            NetThread* Thread = &threads[tIndex];
-            for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-                //ProcessPeriodicStats(&Thread->queues[qIndex]);
-                Thread->queues[qIndex].ProcessPeriodicStats();
-            }
-        }
-    }
-
-    WriteBooleanNoFence(&processDone, TRUE);
-
-    for (UINT32 tIndex = 0; tIndex < threadCount; tIndex++) {
-        NetThread* Thread = &threads[tIndex];
-        WaitForSingleObject(Thread->threadHandle, INFINITE);
-        for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
-            //PrintFinalStats(&Thread->queues[qIndex]);
-            Thread->queues[qIndex].PrintFinalStats();
-        }
-    }
-    delete g_LocalAdapter;
-
-    return 0;
-}

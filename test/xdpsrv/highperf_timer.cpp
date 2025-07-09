@@ -118,7 +118,7 @@ LONGLONG COLSHighPerfTimer::GetMicrosecondsSince(LARGE_INTEGER startTime, LONGLO
 // On Windows, the system APIs `QueryPerformanceCounter` and `QueryPerformanceFrequency` are typically based on TSC register.
 // On amd64-based Windows 10+ systems, `QueryPerformanceFrequency` typically returns 10,000,000, which means the resolution
 // is 100 nanoseconds.
-// 
+//
 // On Unix/Linux, the C library and POSIX has released several basic time facilities, among which `clock_gettime` is the one
 // supports highest resolution. <https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2008/n2661.htm>
 // `clock_gettime` is also used as one implementation of C++11 library `std::high_resolution_clock`.
@@ -153,13 +153,13 @@ BOOL QueryPerformanceFrequency(_Out_ LARGE_INTEGER* lpFrequency)
     auto getFreq = []() {
         struct timespec ts;
         if (clock_getres(CLOCK_MONOTONIC_RAW, &ts) == 0 &&
-            ts.tv_sec == 0 && ts.tv_nsec > 0 && NS_IN_SECOND % static_cast<int64_t>(ts.tv_nsec) == 0)
+                ts.tv_sec == 0 && ts.tv_nsec > 0 && NS_IN_SECOND % static_cast<int64_t>(ts.tv_nsec) == 0)
         {
             return NS_IN_SECOND / static_cast<int64_t>(ts.tv_nsec);
         }
         _ASSERT(false);
         return static_cast<int64_t>(10000000); // typical value of `QueryPerformanceFrequency` on Windows
-        };
+    };
 
     static const int64_t freq = getFreq();
     lpFrequency->QuadPart = freq;
@@ -193,7 +193,7 @@ void sTokenBucket::InitTokenbucket(int init_capacity, int init_refill_rate) {
     refill_rate = init_refill_rate;
     QueryPerformanceFrequency(&(freqQpc));
     QueryPerformanceCounter(&(lastCounter));
-	//bucket->last_refill = time(NULL);
+    //bucket->last_refill = time(NULL);
 }
 void sTokenBucket::refill_tokens() {
     LARGE_INTEGER now;

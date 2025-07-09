@@ -8,17 +8,17 @@
 #include "rss_queue.h"
 
 class NetThread {
-public:
-    HANDLE threadHandle;
-    HANDLE readyEvent;
-    LONG nodeAffinity;
-    LONG group;
-    LONG idealCpu;
-    UINT32 yieldCount;
-    DWORD_PTR cpuAffinity;
-    BOOLEAN wait;
+    public:
+        HANDLE threadHandle;
+        HANDLE readyEvent;
+        LONG nodeAffinity;
+        LONG group;
+        LONG idealCpu;
+        UINT32 yieldCount;
+        DWORD_PTR cpuAffinity;
+        BOOLEAN wait;
 
-    UINT32 queueCount;
-    RssQueue* queues;
+        UINT32 queueCount;
+        RssQueue* queues;
 };
 
