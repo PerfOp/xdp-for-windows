@@ -27,54 +27,50 @@ VOID ByteToHexString(const UCHAR* bytes, const size_t length, CHAR* out_buffer, 
 }
 
 // TODO: This is an example of a library function
-UCHAR
-HexToBin(
-	_In_ CHAR Char
-)
+UCHAR HexToBin(
+        _In_ CHAR Char
+        )
 {
-	Char = (CHAR)tolower(Char);
+    Char = (CHAR)tolower(Char);
 
-	if (Char >= '0' && Char <= '9') {
-		return (UCHAR)(Char - '0');
-	}
+    if (Char >= '0' && Char <= '9') {
+        return (UCHAR)(Char - '0');
+    }
 
-	if (Char >= 'a' && Char <= 'f') {
-		return (UCHAR)(10 + Char - 'a');
-	}
+    if (Char >= 'a' && Char <= 'f') {
+        return (UCHAR)(10 + Char - 'a');
+    }
 
-	//ASSERT_FRE(!"Invalid hex");
-	return 0;
+    //ASSERT_FRE(!"Invalid hex");
+    return 0;
 }
 
-VOID
-HexStringToByte(
-	_Inout_ UCHAR* Buffer,
-	_In_ UINT32 BufferSize,
-	_In_opt_z_ const CHAR* Hex
-)
+VOID HexStringToByte(
+        _Inout_ UCHAR* Buffer,
+        _In_ UINT32 BufferSize,
+        _In_opt_z_ const CHAR* Hex
+        )
 {
-	while (Hex != NULL && *Hex != '\0') {
-		//ASSERT_FRE(BufferSize > 0);
+    while (Hex != NULL && *Hex != '\0') {
+        //ASSERT_FRE(BufferSize > 0);
 
-		*Buffer = HexToBin(*Hex++);
-		*Buffer <<= 4;
+        *Buffer = HexToBin(*Hex++);
+        *Buffer <<= 4;
 
-		//ASSERT_FRE(*Hex != '\0');
-		*Buffer |= HexToBin(*Hex++);
+        //ASSERT_FRE(*Hex != '\0');
+        *Buffer |= HexToBin(*Hex++);
 
-		Buffer++;
-		BufferSize--;
-	}
+        Buffer++;
+        BufferSize--;
+    }
 }
 
 #ifndef _KERNEL_MODE
-inline
-BOOLEAN
-PktStringToInetAddressA(
-    _Out_ INET_ADDR* InetAddr,
-    _Out_ ADDRESS_FAMILY* AddressFamily,
-    _In_ CONST CHAR* String
-)
+inline BOOLEAN PktStringToInetAddressA(
+        _Out_ INET_ADDR* InetAddr,
+        _Out_ ADDRESS_FAMILY* AddressFamily,
+        _In_ CONST CHAR* String
+        )
 {
     NTSTATUS Status;
     CONST CHAR* Terminator;
@@ -105,15 +101,15 @@ PktStringToInetAddressA(
 #endif
 
 VOID* InitUdpPacket(
-    CHAR* srcETH, 
-    CHAR* srcIP, 
-    UINT16 srcPort, 
-    CHAR* dstETH, 
-    CHAR* dstIP, 
-    UINT16 dstPort, 
-    UINT32 PayloadLength, 
-    UINT32& PacketLength, 
-    const UINT8 ttl)
+        CHAR* srcETH,
+        CHAR* srcIP,
+        UINT16 srcPort,
+        CHAR* dstETH,
+        CHAR* dstIP,
+        UINT16 dstPort,
+        UINT32 PayloadLength,
+        UINT32& PacketLength,
+        const UINT8 ttl)
 {
     ETHERNET_ADDRESS EthSrc, EthDst;
     INET_ADDR IpSrc, IpDst;
@@ -146,19 +142,19 @@ VOID* InitUdpPacket(
     Af = AfSrc;
 
     /*
-    PortSrc = htons(srcPort);
-    PortDst = htons(dstPort);
-*/
+       PortSrc = htons(srcPort);
+       PortDst = htons(dstPort);
+       */
     //if (IsUdp) {
     PacketLength = UDP_HEADER_BACKFILL(Af) + PayloadLength;
     __analysis_assume(PacketLength > UDP_HEADER_BACKFILL(Af));
     /*
-    }
-    else {
-        PacketLength = TCP_HEADER_BACKFILL(Af) + PayloadLength;
-        __analysis_assume(PacketLength > TCP_HEADER_BACKFILL(Af));
-    }
-    */
+       }
+       else {
+       PacketLength = TCP_HEADER_BACKFILL(Af) + PayloadLength;
+       __analysis_assume(PacketLength > TCP_HEADER_BACKFILL(Af));
+       }
+       */
     PayloadBuffer = (UCHAR*)calloc(1, PayloadLength > 0 ? PayloadLength : 1);
     if (PayloadBuffer == NULL) {
         return NULL;
@@ -174,103 +170,103 @@ VOID* InitUdpPacket(
     }
 
     //if (IsUdp) {
-	if (!PktBuildUdpFrame(
-		PacketBuffer, &PacketLength,
-		PayloadBuffer, PayloadLength,
-		&EthDst, &EthSrc,
-		Af,
-		&IpDst, &IpSrc,
-		dstPort, srcPort,
-		ttl)) {
-		free(PayloadBuffer);
-		free(PacketBuffer);
-	}
-	/*
-        }
+    if (!PktBuildUdpFrame(
+                PacketBuffer, &PacketLength,
+                PayloadBuffer, PayloadLength,
+                &EthDst, &EthSrc,
+                Af,
+                &IpDst, &IpSrc,
+                dstPort, srcPort,
+                ttl)) {
+        free(PayloadBuffer);
+        free(PacketBuffer);
+    }
+    /*
+       }
 
-        else {
-            if (!PktBuildTcpFrame(
-                PacketBuffer, &packetLength, PayloadBuffer, PayloadLength,
-                NULL, 0, 1, 2, TH_SYN | TH_ACK, 4, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
-                PortDst, PortSrc)) {
-                Usage("Failed to build the TCP packet");
-                Err = 1;
-                goto Exit;
-            }
-        }
-    */
+       else {
+       if (!PktBuildTcpFrame(
+       PacketBuffer, &packetLength, PayloadBuffer, PayloadLength,
+       NULL, 0, 1, 2, TH_SYN | TH_ACK, 4, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
+       PortDst, PortSrc)) {
+       Usage("Failed to build the TCP packet");
+       Err = 1;
+       goto Exit;
+       }
+       }
+       */
 
 
     return PacketBuffer;
 }
 
 BOOL BuildUdpPacket(
-    ADDRESS_FAMILY Af,
-    ETHERNET_ADDRESS EthSrc,
-    INET_ADDR IpSrc,
-    UINT16 srcPort,
-    ETHERNET_ADDRESS EthDst,
-    INET_ADDR IpDst,
-    UINT16 dstPort,
-    const UCHAR* payloadBuffer,
-    UINT32 payloadLength,
-    UCHAR* mtuBuffer,
-    UINT32& packetLength,
-    const UINT8 ttl
-) {
+        ADDRESS_FAMILY Af,
+        ETHERNET_ADDRESS EthSrc,
+        INET_ADDR IpSrc,
+        UINT16 srcPort,
+        ETHERNET_ADDRESS EthDst,
+        INET_ADDR IpDst,
+        UINT16 dstPort,
+        const UCHAR* payloadBuffer,
+        UINT32 payloadLength,
+        UCHAR* mtuBuffer,
+        UINT32& packetLength,
+        const UINT8 ttl
+        ) {
     /*
-    UINT16 PortSrc, PortDst;
-    
-    PortSrc = htons(srcPort);
-    PortDst = htons(dstPort);
-*/
+       UINT16 PortSrc, PortDst;
+
+       PortSrc = htons(srcPort);
+       PortDst = htons(dstPort);
+       */
     //if (IsUdp) {
     packetLength = UDP_HEADER_BACKFILL(Af) + payloadLength;
     __analysis_assume(packetLength > UDP_HEADER_BACKFILL(Af));
     /*
-    }
-    else {
-        PacketLength = TCP_HEADER_BACKFILL(Af) + PayloadLength;
-        __analysis_assume(PacketLength > TCP_HEADER_BACKFILL(Af));
-    }
-    */
+       }
+       else {
+       PacketLength = TCP_HEADER_BACKFILL(Af) + PayloadLength;
+       __analysis_assume(PacketLength > TCP_HEADER_BACKFILL(Af));
+       }
+       */
 
-    //if (IsUdp) 
+    //if (IsUdp)
     if (!PktBuildUdpFrame(
-        //PacketBuffer, &PacketLength, PayloadBuffer, PayloadLength, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
-        mtuBuffer, &packetLength, payloadBuffer, payloadLength, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
-        dstPort, srcPort, ttl)) {
+                //PacketBuffer, &PacketLength, PayloadBuffer, PayloadLength, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
+                mtuBuffer, &packetLength, payloadBuffer, payloadLength, &EthDst, &EthSrc, Af, &IpDst, &IpSrc,
+                dstPort, srcPort, ttl)) {
         return FALSE;
     }
 
     return TRUE;
 }
-       
+
 BOOL NicAdapter::MTUFromPayload(const UCHAR* payload, UINT32 payloadlength, BYTE* mtuBuffer, UINT32& mtulength, const UINT8 ttl) {
     return BuildUdpPacket(
-		addressFamily,
-        srcEthAddr, 
-        srcIpAddr, 
-        srcPort, 
-        dstEthAddr, 
-        dstIpAddr, 
-        dstPort,
-        payload,
-        payloadlength, 
-        mtuBuffer,
-        mtulength,
-        ttl);
+            addressFamily,
+            srcEthAddr,
+            srcIpAddr,
+            srcPort,
+            dstEthAddr,
+            dstIpAddr,
+            dstPort,
+            payload,
+            payloadlength,
+            mtuBuffer,
+            mtulength,
+            ttl);
 }
-        
+
 BOOL NicAdapter::fillAdapterInfo(PIP_ADAPTER_INFO padapterinfo) {
-	ifindex = padapterinfo->Index;
-	memcpy(&adapterInfo, padapterinfo, sizeof(IP_ADAPTER_INFO));
-	memcpy(verbSrcIpAddr, padapterinfo->IpAddressList.IpAddress.String, sizeof(verbSrcIpAddr));
+    ifindex = padapterinfo->Index;
+    memcpy(&adapterInfo, padapterinfo, sizeof(IP_ADAPTER_INFO));
+    memcpy(verbSrcIpAddr, padapterinfo->IpAddressList.IpAddress.String, sizeof(verbSrcIpAddr));
 
     sprintf_s(verbSrcEthAddr, 20, "%02X-%02X-%02X-%02X-%02X-%02X",
-        padapterinfo->Address[0], padapterinfo->Address[1],
-        padapterinfo->Address[2], padapterinfo->Address[3],
-        padapterinfo->Address[4], padapterinfo->Address[5]);
+            padapterinfo->Address[0], padapterinfo->Address[1],
+            padapterinfo->Address[2], padapterinfo->Address[3],
+            padapterinfo->Address[4], padapterinfo->Address[5]);
 
     return TRUE;
 }
@@ -289,35 +285,35 @@ BOOL NicAdapter::findAdapterByIP(const char* targetIP, const UINT16 srcport) {
     PIP_ADAPTER_INFO cur = pIpAdapterInfo;
     while (cur) {
         switch (cur->Type) {
-        case MIB_IF_TYPE_OTHER:
-            break;
-        case MIB_IF_TYPE_ETHERNET:
-        {
-            IP_ADDR_STRING* pIpAddrString = &(cur->IpAddressList);
-            if (strcmp(targetIP, pIpAddrString->IpAddress.String) == 0) {
-                fillAdapterInfo(cur);
-                srcPort = srcport;
-
-                printf("ip: %s\n", verbSrcIpAddr);
-                printf("mask: %s\n", pIpAddrString->IpMask.String);
-                printf("mac:%s\n", verbSrcEthAddr);
+            case MIB_IF_TYPE_OTHER:
                 break;
-            }
-        }
-        break;
-        case MIB_IF_TYPE_TOKENRING:
-        case MIB_IF_TYPE_FDDI:
-        case MIB_IF_TYPE_PPP:
-        case MIB_IF_TYPE_LOOPBACK:
-        case MIB_IF_TYPE_SLIP:
-            break;
-        default:
-        {
-            IP_ADDR_STRING* pIpAddrString = &(cur->IpAddressList);
-            printf("ip: %s\n", pIpAddrString->IpAddress.String);
-            printf("mask: %s\n", pIpAddrString->IpMask.String);
-        }
-        break;
+            case MIB_IF_TYPE_ETHERNET:
+                {
+                    IP_ADDR_STRING* pIpAddrString = &(cur->IpAddressList);
+                    if (strcmp(targetIP, pIpAddrString->IpAddress.String) == 0) {
+                        fillAdapterInfo(cur);
+                        srcPort = srcport;
+
+                        printf("ip: %s\n", verbSrcIpAddr);
+                        printf("mask: %s\n", pIpAddrString->IpMask.String);
+                        printf("mac:%s\n", verbSrcEthAddr);
+                        break;
+                    }
+                }
+                break;
+            case MIB_IF_TYPE_TOKENRING:
+            case MIB_IF_TYPE_FDDI:
+            case MIB_IF_TYPE_PPP:
+            case MIB_IF_TYPE_LOOPBACK:
+            case MIB_IF_TYPE_SLIP:
+                break;
+            default:
+                {
+                    IP_ADDR_STRING* pIpAddrString = &(cur->IpAddressList);
+                    printf("ip: %s\n", pIpAddrString->IpAddress.String);
+                    printf("mask: %s\n", pIpAddrString->IpMask.String);
+                }
+                break;
         }
         cur = cur->Next;
     }
@@ -342,19 +338,19 @@ BOOL NicAdapter::InitLocalByIdx(const UINT32 idx, const UINT16 port) {
                     this->InitLocalByIP(ipStr, port);
                 }
                 this->ifindex = idx;
-				free(adapterAddresses);
+                free(adapterAddresses);
                 return TRUE;
             }
         }
     }
-	printf("No adapter found with index %u, please use an emuratable ifindex\n", idx);
-	free(adapterAddresses);
+    printf("No adapter found with index %u, please use an emuratable ifindex\n", idx);
+    free(adapterAddresses);
 
     return FALSE;
 }
 BOOL NicAdapter::InitLocalByIP(const char* ipaddr, const UINT16 port) {
     if (!findAdapterByIP(ipaddr, port)) {
-		printf("Cannot locate the adapter by ip\n");
+        printf("Cannot locate the adapter by ip\n");
         return FALSE;
     }
     return identifyLocal();
@@ -373,21 +369,21 @@ BOOL NicAdapter::debug_output() {
 
 BOOL NicAdapter::AssignLocal(const char* ipaddr, const char* ethaddr, UINT16 port) {
     //const CHAR* Terminator;
-	memcpy(verbSrcIpAddr, ipaddr, sizeof(verbSrcIpAddr));
+    memcpy(verbSrcIpAddr, ipaddr, sizeof(verbSrcIpAddr));
 
-	memset(verbSrcEthAddr, 0, sizeof(verbSrcEthAddr));
-	memcpy(verbSrcEthAddr, ethaddr, sizeof(verbSrcEthAddr));
-	
+    memset(verbSrcEthAddr, 0, sizeof(verbSrcEthAddr));
+    memcpy(verbSrcEthAddr, ethaddr, sizeof(verbSrcEthAddr));
+
     srcPort = port;
-    
-	if (identifyLocal() == FALSE) {
-		return FALSE;
-	}
+
+    if (identifyLocal() == FALSE) {
+        return FALSE;
+    }
     return TRUE;
 }
 
 BOOL NicAdapter::SetTarget(const char* ipaddr, const char* ethaddr, UINT16 port) {
-	memcpy(verbDstIpAddr, ipaddr, sizeof(verbDstIpAddr));
+    memcpy(verbDstIpAddr, ipaddr, sizeof(verbDstIpAddr));
     if (ethaddr != NULL) {
         memcpy(verbDstEthAddr, ethaddr, sizeof(verbDstEthAddr));
     }
@@ -402,7 +398,7 @@ BOOL NicAdapter::SetTarget(const char* ipaddr, const char* ethaddr, UINT16 port)
 
     return TRUE;
 }
-        
+
 BOOL NicAdapter::identifyLocal(void) {
     const CHAR* Terminator;
     if (!PktStringToInetAddressA(&srcIpAddr, &addressFamily, verbSrcIpAddr)) {
@@ -426,9 +422,9 @@ BOOL NicAdapter::identifyTarget(void) {
 
     return TRUE;
 }
-        
+
 BOOL NicAdapter::selLocalPort(const UINT16 port) {
-	srcPort = port;
+    srcPort = port;
     return TRUE;
 }
 
