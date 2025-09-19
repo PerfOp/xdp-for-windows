@@ -62,142 +62,140 @@ typedef enum {
 
 void
 PrintRing(
-        CHAR* Name,
-        XSK_RING_INFO RingInfo
-        );
+    CHAR* Name,
+    XSK_RING_INFO RingInfo
+);
 
 void
 PrintRingInfo(
-        XSK_RING_INFO_SET InfoSet
-        );
+    XSK_RING_INFO_SET InfoSet
+);
 
 class NicAdapter;
 extern NicAdapter* g_LocalAdapter;
 
 UINT32
 RingPairReserve(
-        _In_ XSK_RING* ConsumerRing,
-        _Out_ UINT32* ConsumerIndex,
-        _In_ XSK_RING* ProducerRing,
-        _Out_ UINT32* ProducerIndex,
-        _In_ UINT32 MaxCount
-        );
+    _In_ XSK_RING* ConsumerRing,
+    _Out_ UINT32* ConsumerIndex,
+    _In_ XSK_RING* ProducerRing,
+    _Out_ UINT32* ProducerIndex,
+    _In_ UINT32 MaxCount
+);
 
 class RssQueue {
-    private:
-        std::string memPath;
-        sTokenBucket reqBucket;
-    public:
-        INT queueId;
-        HANDLE sock;
-        HANDLE rxProgram;
-        XDP_MODE xdpMode;
-        UINT64 umemSize;
-        ULONG umemchunkSize;
-        ULONG umemHeadroom;
-        ULONG txiosize;
-        ULONG iobatchsize;
-        UINT32 ringSize;
-        UCHAR* txPattern;
-        UINT32 txPatternLength;
-        UCHAR* txPayload;
-        INT64* latSamples;
-        UINT32 latSamplesCount;
-        UINT32 latIndex;
-        XSK_POLL_MODE pollMode;
-        int32_t reqPPS{ 0 };
+private:
+    std::string memPath;
+    sTokenBucket reqBucket;
+public:
+    INT queueId;
+    HANDLE sock;
+    HANDLE rxProgram;
+    XDP_MODE xdpMode;
+    UINT64 umemSize;
+    ULONG umemchunkSize;
+    ULONG umemHeadroom;
+    ULONG txiosize;
+    ULONG iobatchsize;
+    UINT32 ringSize;
+    UCHAR* txPattern;
+    UINT32 txPatternLength;
+    UCHAR* txPayload;
+    INT64* latSamples;
+    UINT32 latSamplesCount;
+    UINT32 latIndex;
+    XSK_POLL_MODE pollMode;
+    int32_t reqPPS{ 0 };
 
-        ULONG payloadsize;
+    ULONG payloadsize;
 
-        struct {
-            BOOLEAN periodicStats : 1;
-            BOOLEAN rx : 1;
-            BOOLEAN tx : 1;
-            BOOLEAN optimizePoking : 1;
-            BOOLEAN rxInject : 1;
-            BOOLEAN txInspect : 1;
-        } flags;
+    struct {
+        BOOLEAN periodicStats : 1;
+        BOOLEAN rx : 1;
+        BOOLEAN tx : 1;
+        BOOLEAN optimizePoking : 1;
+        BOOLEAN rxInject : 1;
+        BOOLEAN txInspect : 1;
+    } flags;
 
-        double statsArray[STATS_ARRAY_SIZE];
-        ULONG currStatsArrayIdx;
+    double statsArray[STATS_ARRAY_SIZE];
+    ULONG currStatsArrayIdx;
 
-        ULONGLONG lastTick;
-        ULONGLONG packetCount;
-        ULONGLONG lastPacketCount;
-        ULONGLONG lastRxDropCount;
-        ULONGLONG pokesRequestedCount;
-        ULONGLONG lastPokesRequestedCount;
-        ULONGLONG pokesPerformedCount;
-        ULONGLONG lastPokesPerformedCount;
+    ULONGLONG lastTick;
+    ULONGLONG packetCount;
+    ULONGLONG lastPacketCount;
+    ULONGLONG lastRxDropCount;
+    ULONGLONG pokesRequestedCount;
+    ULONGLONG lastPokesRequestedCount;
+    ULONGLONG pokesPerformedCount;
+    ULONGLONG lastPokesPerformedCount;
 
-        XSK_RING rxRing;
-        XSK_RING txRing;
-        XSK_RING fillRing;
-        XSK_RING compRing;
-        XSK_RING freeRxRing;
-        XSK_RING freeTxRing;
-        XSK_UMEM_REG umemReg;
-    public:
-        RssQueue() {
-            memset(this, 0, sizeof(*this));
-            this->umemSize = DEFAULT_UMEM_SIZE;
-            this->umemchunkSize = DEFAULT_UMEM_CHUNK_SIZE;
-            this->umemHeadroom = DEFAULT_UMEM_HEADROOM;
-            this->iobatchsize = DEFAULT_IO_BATCH;
+    XSK_RING rxRing;
+    XSK_RING txRing;
+    XSK_RING fillRing;
+    XSK_RING compRing;
+    XSK_RING freeRxRing;
+    XSK_RING freeTxRing;
+    XSK_UMEM_REG umemReg;
+public:
+    RssQueue() {
+        memset(this, 0, sizeof(*this));
+        this->umemSize = DEFAULT_UMEM_SIZE;
+        this->umemchunkSize = DEFAULT_UMEM_CHUNK_SIZE;
+        this->umemHeadroom = DEFAULT_UMEM_HEADROOM;
+        this->iobatchsize = DEFAULT_IO_BATCH;
 
-            this->pollMode = XSK_POLL_MODE_DEFAULT;
-            this->flags.optimizePoking = TRUE;
+        this->pollMode = XSK_POLL_MODE_DEFAULT;
+        this->flags.optimizePoking = TRUE;
 
-            this->queueId = -1;
-            this->xdpMode = XdpModeSystem;
-            this->txiosize = DEFAULT_TX_IO_SIZE;
-            this->latSamplesCount = DEFAULT_LAT_COUNT;
+        this->queueId = -1;
+        this->xdpMode = XdpModeSystem;
+        this->txiosize = DEFAULT_TX_IO_SIZE;
+        this->latSamplesCount = DEFAULT_LAT_COUNT;
 
-            this->payloadsize = DEFAULT_PAYLOAD_SIZE;
-            this->txPayload = NULL;
-        }
-    private:
-        void notifyDriver(XSK_NOTIFY_FLAGS DirectionFlags);
-        void writeTxPackets(
-                UINT32 FreeConsumerIndex,
-                UINT32 TxProducerIndex,
-                UINT32 Count);
-        void readCompletionPackets(
-                UINT32 CompConsumerIndex,
-                UINT32 FreeProducerIndex,
-                UINT32 Count);
-        void readRxPackets(
-                UINT32 RxConsumerIndex,
-                UINT32 FreeProducerIndex,
-                UINT32 Count);
-        void writeFillPackets(
-                UINT32 FreeConsumerIndex,
-                UINT32 FillProducerIndex,
-                UINT32 Count
-                );
-        BOOL initSharedMemory();
-        BOOL initFreeRing();
-        BOOL initDataPath(INT ifindex) ;
-        BOOL attachXdpProgram(INT ifindex);
-    public:
+        this->payloadsize = DEFAULT_PAYLOAD_SIZE;
+        this->txPayload = NULL;
+    }
+private:
+    void notifyDriver(XSK_NOTIFY_FLAGS DirectionFlags);
+    void writeTxPackets(
+        UINT32 FreeConsumerIndex,
+        UINT32 TxProducerIndex,
+        UINT32 Count);
+    void readCompletionPackets(
+        UINT32 CompConsumerIndex,
+        UINT32 FreeProducerIndex,
+        UINT32 Count);
+    void readRxPackets(
+        UINT32 RxConsumerIndex,
+        UINT32 FreeProducerIndex,
+        UINT32 Count);
+    void writeFillPackets(
+        UINT32 FreeConsumerIndex,
+        UINT32 FillProducerIndex,
+        UINT32 Count
+    );
+    BOOL initSharedMemory();
+    BOOL initFreeRing();
+    BOOL initDataPath(INT ifindex);
+    BOOL attachXdpProgram(INT ifindex);
+public:
 
-		// Set memory parameters and calculate ring size on the user input args
-        void SetMemoryParam(UINT64 umemsize, ULONG umemchunksize) ;
-        // Initialization for socket
-        void SetupSock(INT IfIndex);
+    // Set memory parameters and calculate ring size on the user input args
+    void SetMemoryParam(UINT64 umemsize, ULONG umemchunksize);
+    // Initialization for socket
+    void SetupSock(INT IfIndex);
 
-        // Functions for running modes.
-        UINT32 ProcessTx(BOOLEAN Wait);
-        UINT32 ProcessRx(BOOLEAN Wait);
-        UINT32 ProcessFwd(BOOLEAN Wait);
-        UINT32 ProcessLat(BOOLEAN Wait);
+    // Functions for running modes.
+    UINT32 ProcessTx(BOOLEAN Wait);
+    UINT32 ProcessRx(BOOLEAN Wait);
+    UINT32 ProcessFwd(BOOLEAN Wait);
+    UINT32 ProcessLat(BOOLEAN Wait);
 
-        // Helpers for stats
-        void PrintFinalStats();
-        void PrintFinalLatStats();
-        void ProcessPeriodicStats() ;
+    // Helpers for stats
+    void PrintFinalStats();
+    void PrintFinalLatStats();
+    void ProcessPeriodicStats();
 
-        UINT32 IssueRequest();
+    UINT32 IssueRequest();
 };
-
-

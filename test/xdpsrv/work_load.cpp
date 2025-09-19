@@ -2,10 +2,8 @@
 #include "work_load.h"
 #include "highperf_timer.h"
 
-//#include <iostream>
 #include <thread>
 #include <windows.h>
-
 
 struct Context {
     std::string name;
