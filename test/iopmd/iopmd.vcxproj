@@ -1,0 +1,43 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <TargetName>iopmd</TargetName>
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>iopmd</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)src\xdp.cpp.props" />
+  <ItemGroup>
+    <ClCompile Include="iopmd.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="iopmd.h" />
+  </ItemGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\rtl\inc;$(SolutionDir)test\common\inc;$(IntDir);$(SolutionDir)test\netport;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ntdll.lib;onecore.lib;netport.lib;%(AdditionalDependencies);util.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)\artifacts\bin\$(Platform)_$(Configuration)\test\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(SolutionDir)src\xdp.targets" />
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{173A3D31-8A09-4E19-BE31-F2781E3DC1DF}</ProjectGuid>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+    <VCRedistVersion Condition="exists('$(VCInstallDir)Auxiliary\Build\Microsoft.VCRedistVersion.default.txt')">$([System.IO.File]::ReadAllText($(VCInstallDir)Auxiliary\Build\Microsoft.VCRedistVersion.default.txt).Trim())</VCRedistVersion>
+    <VCOutDir>$(OutDir)debugcrt\</VCOutDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <PostBuildEvent>
+      <Command>xcopy "$(VCInstallDir)redist\MSVC\$(VCRedistVersion)\onecore\debug_nonredist\$(PlatformShortName)\Microsoft.VC$(PlatformToolsetVersion).DebugCRT\*.dll" "$(VCOutDir)" /D /Y &amp;&amp; xcopy "$(UniversalCRTSdkDir)\bin\$(TargetUniversalCRTVersion)\$(Platform)\ucrt\*.dll" "$(VCOutDir)" /D /Y </Command>
+    </PostBuildEvent>
+    <Link>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ntdll.lib;onecore.lib;netport.lib;%(AdditionalDependencies);</AdditionalDependencies>
+      <AdditionalLibraryDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)\artifacts\bin\$(Platform)_$(Configuration)\test\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+</Project>

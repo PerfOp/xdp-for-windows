@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "netport.h"
+/*
 #define SHALLOW_STR_OF(x) #x
 #define STR_OF(x) SHALLOW_STR_OF(x)
 
@@ -33,6 +35,7 @@
 #else
 #define VERIFY(expr) (expr)
 #endif
+*/
 
 #define DEFAULT_UDP_DEST_PORT 0
 
