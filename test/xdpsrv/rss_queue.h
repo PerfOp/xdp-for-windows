@@ -150,12 +150,6 @@ class RssQueue {
 
             this->queueId = -1;
             this->xdpMode = XdpModeSystem;
-            //this->umemsize = DEFAULT_UMEM_SIZE;
-            //this->umemchunksize = DEFAULT_UMEM_CHUNK_SIZE;
-            //this->umemheadroom = DEFAULT_UMEM_HEADROOM;
-            //this->iobatchsize = DEFAULT_IO_BATCH;
-            //this->pollMode = XSK_POLL_MODE_DEFAULT;
-            //this->flags.optimizePoking = TRUE;
             this->txiosize = DEFAULT_TX_IO_SIZE;
             this->latSamplesCount = DEFAULT_LAT_COUNT;
 

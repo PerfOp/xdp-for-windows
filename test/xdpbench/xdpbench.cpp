@@ -127,6 +127,8 @@ int consume_tokens(sTokenBucket* bucket, int applytokens) {
 
 UINT32 g_downSentCount = 0;
 UINT32 g_upReceiveCount = 0;
+    
+const char* g_XdpMemName = "Local\\XdpSharedMemory";
 
 typedef enum {
     ModeRx,
@@ -467,6 +469,24 @@ ParseUInt32A(
     *Result = (UINT32)Tmp;
     return TRUE;
 }
+VOID* getSharedMemory(size_t size) {
+    //const char* name = "Local\\MySharedMemory";
+    LPVOID pBuf = NULL;
+
+    HANDLE hMapFile = CreateFileMappingA(
+        INVALID_HANDLE_VALUE, 
+        NULL, 
+        PAGE_READWRITE, 
+        0, 
+        (DWORD)size, 
+        g_XdpMemName);
+    if(hMapFile != NULL) {
+		pBuf = MapViewOfFile(hMapFile, FILE_MAP_ALL_ACCESS, 0, 0, size);
+        return pBuf;
+    } else {
+        return NULL;
+	}
+}
 
 VOID
 SetupSock(
@@ -497,10 +517,13 @@ SetupSock(
         Queue->umemReg.TotalSize = ALIGN_UP_BY(Queue->umemReg.TotalSize, GetLargePageMinimum());
     }
 
+	Queue->umemReg.Address = getSharedMemory(Queue->umemReg.TotalSize);
+    /*
     Queue->umemReg.Address =
         VirtualAlloc(
             NULL, Queue->umemReg.TotalSize,
             (largePages ? MEM_LARGE_PAGES : 0) | MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+            */
     ASSERT_FRE(Queue->umemReg.Address != NULL);
 
     res =
