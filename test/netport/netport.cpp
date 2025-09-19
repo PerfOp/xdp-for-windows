@@ -248,23 +248,19 @@ BOOL BuildUdpPacket(
 }
 
 BOOL NicAdapter::MTUFromPayload(const UCHAR* payload, UINT32 payloadlength, BYTE* mtuBuffer, UINT32& mtulength, const UINT8 ttl) {
-    BOOL ret=BuildUdpPacket(
-            addressFamily,
-            srcEthAddr,
-            srcIpAddr,
-            srcPort,
-            dstEthAddr,
-            dstIpAddr,
-            dstPort,
-            payload,
-            payloadlength,
-            mtuBuffer,
-            mtulength,
-            ttl);
-    if (ret) {
-        printf("Payload length %d generates MTU %d\n", payloadlength, mtulength);
-    }
-    return ret;
+    return BuildUdpPacket(
+        addressFamily,
+        srcEthAddr,
+        srcIpAddr,
+        srcPort,
+        dstEthAddr,
+        dstIpAddr,
+        dstPort,
+        payload,
+        payloadlength,
+        mtuBuffer,
+        mtulength,
+        ttl);
 }
 
 BOOL NicAdapter::fillAdapterInfo(PIP_ADAPTER_INFO padapterinfo) {
