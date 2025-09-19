@@ -65,6 +65,53 @@ VOID HexStringToByte(
     }
 }
 
+HANDLE g_hMapFile = NULL;
+void* g_hBuffer = NULL;
+LPVOID CreateOrBindMemory(const char* handleName, const size_t size){
+    wchar_t wname[256];
+    MultiByteToWideChar(CP_ACP, 0, handleName, -1, wname, 256);
+
+    HANDLE g_hMapFile = CreateFileMapping(
+        INVALID_HANDLE_VALUE,     
+        NULL,                    
+        PAGE_READWRITE,         
+        0,                     
+        size,                 
+        wname//L"MySharedMemory"    
+    );
+
+
+    if (g_hMapFile == NULL) {
+        printf_error("Create file faiure\n");
+    }
+    else {
+        if (GetLastError() == ERROR_ALREADY_EXISTS) {
+            printf_error("Attached an exist file handle\n");
+        }
+        else {
+            printf_error("Created a file handle\n");
+        }
+    }
+
+
+    g_hBuffer = MapViewOfFile(
+        g_hMapFile,           
+        FILE_MAP_ALL_ACCESS,
+        0, 0, size         
+    );
+
+    return g_hBuffer;
+}
+BOOL ReleaseBondMemory(const char* handleName) {
+    if (g_hBuffer != NULL) {
+        UnmapViewOfFile(g_hBuffer);
+    }
+    if (g_hMapFile != NULL) {
+        CloseHandle(g_hMapFile);
+    }
+    return TRUE;
+}
+
 #ifndef _KERNEL_MODE
 inline BOOLEAN PktStringToInetAddressA(
         _Out_ INET_ADDR* InetAddr,

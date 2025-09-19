@@ -7,7 +7,6 @@
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
 
-#include <Windows.h>
 #include <inaddr.h>
 #include <in6addr.h>
 #include <netiodef.h>
@@ -64,6 +63,9 @@ const UINT16 kDefaultDstPort = 1234;
 const UINT16 kDefaultSrcPort = 4321;
 
 typedef DL_EUI48 ETHERNET_ADDRESS;
+
+LPVOID CreateOrBindMemory(const char* handleName, const size_t size);
+BOOL ReleaseBondMemory(const char* handleName);
 
 #ifdef __cplusplus
 extern "C" {
