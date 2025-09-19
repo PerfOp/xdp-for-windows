@@ -181,7 +181,8 @@ class RssQueue {
         BOOL attachXdpProgram(INT ifindex);
     public:
 
-        void SetMemory(UINT64 umemsize, ULONG umemchunksize) ;
+		// Set memory parameters and calculate ring size on the user input args
+        void SetMemoryParam(UINT64 umemsize, ULONG umemchunksize) ;
         // Initialization for socket
         void SetupSock(INT IfIndex);
 

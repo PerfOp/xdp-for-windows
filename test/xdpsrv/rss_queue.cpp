@@ -52,7 +52,7 @@ UINT32 RingPairReserve(
     return MaxCount;
 }
 
-void RssQueue::SetMemory(UINT64 umemsize, ULONG umemchunksize) {
+void RssQueue::SetMemoryParam(UINT64 umemsize, ULONG umemchunksize) {
     UINT64 RingSize64 = umemsize / umemchunksize;
     ASSERT_FRE(RingSize64 <= MAXUINT32);
     this->umemSize = umemsize;

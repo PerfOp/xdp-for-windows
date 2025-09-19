@@ -214,6 +214,7 @@ extern "C" {
 
             Buffer = UdpHeader + 1;
 
+            memset((void*)Payload, PayloadLength, 0);
             RtlCopyMemory(Buffer, Payload, PayloadLength);
             UdpHeader->uh_sum = PktChecksum(0, UdpHeader, UdpLength);
 

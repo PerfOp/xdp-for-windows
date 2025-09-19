@@ -386,7 +386,14 @@ ParseQueueArgs(
             if (++i >= argc) {
                 Usage();
             }
+            if(Queue->txPayload!=NULL){
+                printf_error("Payload was setting by previous -tx_payload, please check the parameter \n");
+                ABORT("Payload was setting by previous -tx_payload, please check the parameter \n");
+			}
             Queue->payloadsize = atoi(argv[i]);
+            Queue->txPayload = (UCHAR*)malloc(Queue->payloadsize);
+            ASSERT_FRE(Queue->txPayload != NULL);
+            memset(Queue->txPayload, 0, Queue->payloadsize);
         }
         else if (!_stricmp(argv[i], "-reqpps")) {
             if (++i >= argc) {
@@ -517,6 +524,10 @@ ParseQueueArgs(
                 printf_error("Invalid tx_payload argument: %s\n", argv[i]);
                 ABORT("The tx_payload must be a hexadecimal string with an even number of characters.\n");
             }
+            if(Queue->txPayload!=NULL){
+                printf_error("Payload was setting by previous -payloadsize, please check the parameter \n");
+                ABORT("Payload was setting by previous -payloadsize, please check the parameter \n");
+			}
             Queue->payloadsize = (UINT32)strlen(argv[i]) >> 1;
             Queue->txPayload = (UCHAR*)malloc(Queue->payloadsize);
             ASSERT_FRE(Queue->txPayload != NULL);
@@ -541,7 +552,7 @@ ParseQueueArgs(
     }
 
     if (Queue->ringSize == 0) {
-        Queue->SetMemory(umemsize, umemchunksize);
+        Queue->SetMemoryParam(umemsize, umemchunksize);
     }
 
 

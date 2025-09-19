@@ -223,6 +223,11 @@ BOOL BuildUdpPacket(
     //if (IsUdp) {
     packetLength = UDP_HEADER_BACKFILL(Af) + payloadLength;
     __analysis_assume(packetLength > UDP_HEADER_BACKFILL(Af));
+
+    //for (int i = 0; i < 6; i++) {
+    //    printf("%X", payloadBuffer[i]);
+    //}
+    //printf("\n");
     /*
        }
        else {
@@ -243,7 +248,7 @@ BOOL BuildUdpPacket(
 }
 
 BOOL NicAdapter::MTUFromPayload(const UCHAR* payload, UINT32 payloadlength, BYTE* mtuBuffer, UINT32& mtulength, const UINT8 ttl) {
-    return BuildUdpPacket(
+    BOOL ret=BuildUdpPacket(
             addressFamily,
             srcEthAddr,
             srcIpAddr,
@@ -256,6 +261,10 @@ BOOL NicAdapter::MTUFromPayload(const UCHAR* payload, UINT32 payloadlength, BYTE
             mtuBuffer,
             mtulength,
             ttl);
+    if (ret) {
+        printf("Payload length %d generates MTU %d\n", payloadlength, mtulength);
+    }
+    return ret;
 }
 
 BOOL NicAdapter::fillAdapterInfo(PIP_ADAPTER_INFO padapterinfo) {
