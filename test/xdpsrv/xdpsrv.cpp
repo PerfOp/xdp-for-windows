@@ -158,33 +158,7 @@ ParseUInt64A(
     return TRUE;
 }
 
-_Success_(return)
-BOOLEAN
-ParseUInt32A(
-    _In_z_ const CHAR * Arg,
-    _Out_ UINT32 * Result
-)
-{
-    UINT64 Tmp;
-
-    if (!ParseUInt64A(Arg, &Tmp)) {
-        return FALSE;
-    }
-
-    if (Tmp > MAXUINT32) {
-        printf_verbose("Invalid integer value: %s\n", Arg);
-        return FALSE;
-    }
-
-    *Result = (UINT32)Tmp;
-    return TRUE;
-}
-
-VOID
-DoRxMode(
-    NetThread * Thread
-)
-{
+VOID RxPMD(NetThread * Thread){
     for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
         RssQueue* queue = &Thread->queues[qIndex];
 
@@ -214,11 +188,7 @@ DoRxMode(
     }
 }
 
-VOID
-DoTxMode(
-    NetThread * Thread
-)
-{
+VOID TxPMD(NetThread * Thread){
     for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
         RssQueue* queue = &Thread->queues[qIndex];
 
@@ -249,11 +219,7 @@ DoTxMode(
     }
 }
 
-VOID
-DoFwdMode(
-    NetThread * Thread
-)
-{
+VOID FwdPMD(NetThread * Thread){
     for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
         RssQueue* queue = &Thread->queues[qIndex];
 
@@ -285,11 +251,7 @@ DoFwdMode(
     }
 }
 
-VOID
-DoLatMode(
-    NetThread * Thread
-)
-{
+VOID LatPMD(NetThread * Thread){
     for (UINT32 qIndex = 0; qIndex < Thread->queueCount; qIndex++) {
         RssQueue* queue = &Thread->queues[qIndex];
 
@@ -386,10 +348,10 @@ ParseQueueArgs(
             if (++i >= argc) {
                 Usage();
             }
-            if (Queue->txPayload != NULL) {
+            if(Queue->txPayload!=NULL){
                 printf_error("Payload was setting by previous -tx_payload, please check the parameter \n");
                 ABORT("Payload was setting by previous -tx_payload, please check the parameter \n");
-            }
+			}
             Queue->payloadsize = atoi(argv[i]);
             Queue->txPayload = (UCHAR*)malloc(Queue->payloadsize);
             ASSERT_FRE(Queue->txPayload != NULL);
@@ -524,10 +486,10 @@ ParseQueueArgs(
                 printf_error("Invalid tx_payload argument: %s\n", argv[i]);
                 ABORT("The tx_payload must be a hexadecimal string with an even number of characters.\n");
             }
-            if (Queue->txPayload != NULL) {
+            if(Queue->txPayload!=NULL){
                 printf_error("Payload was setting by previous -payloadsize, please check the parameter \n");
                 ABORT("Payload was setting by previous -payloadsize, please check the parameter \n");
-            }
+			}
             Queue->payloadsize = (UINT32)strlen(argv[i]) >> 1;
             Queue->txPayload = (UCHAR*)malloc(Queue->payloadsize);
             ASSERT_FRE(Queue->txPayload != NULL);
@@ -816,12 +778,7 @@ SetThreadAffinities(
     return S_OK;
 }
 
-DWORD
-WINAPI
-XdpPollingThread(
-    LPVOID lpThreadParameter
-)
-{
+DWORD WINAPI XdpPollingThread(LPVOID lpThreadParameter){
     NetThread* thread = (NetThread*)lpThreadParameter;
     HRESULT res;
 
@@ -831,16 +788,16 @@ XdpPollingThread(
     ASSERT_FRE(res == S_OK);
 
     if (workMode == ModeRx) {
-        DoRxMode(thread);
+        RxPMD(thread);
     }
     else if (workMode == ModeTx) {
-        DoTxMode(thread);
+        TxPMD(thread);
     }
     else if (workMode == ModeFwd) {
-        DoFwdMode(thread);
+        FwdPMD(thread);
     }
     else if (workMode == ModeLat) {
-        DoLatMode(thread);
+        LatPMD(thread);
     }
 
     return 0;
